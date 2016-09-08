@@ -1,3 +1,42 @@
+
+pull_5min_flux <- function(start.date, end.date, descrip){
+  query1 <- paste0("SELECT flux.datetime, flux.sensit, flux.sand_flux, 
+                   flux.windspeed_10m, flux.winddirection_10m, flux.invalid,
+                   idep.deployment AS csc, idep.easting_utm AS x, 
+                   idep.northing_utm AS y, ia.area AS dca
+                   FROM sandcatches.sandflux_5min flux
+                   JOIN instruments.deployments idep
+                   ON flux.csc_deployment_id=idep.deployment_id
+                   JOIN instruments.areas ia
+                   ON idep.area_id=ia.area_id
+                   WHERE datetime::date 
+                   BETWEEN '", start.date, "'::date AND '", end.date, "'::date
+                   AND ia.description='", descrip, "'")
+  flux_data <- query_owenslake(query1)
+  flux_data <- filter(flux_data, !(sand_flux<0))
+  flux_data <- flux_data[!flux_data$invalid, ]
+  csc_locs <- select(flux_data, csc, x, y)[!duplicated(flux_data$csc), ]
+  df1 <- clean_flux_sfwct(flux_data) 
+  flux_df <- mutate(df1, area=paste0(dca, "_", treatment), 
+                    month=month(datetime), year=year(datetime), 
+                    period=paste0(formatC(month, width=2, format="d", flag="0"), 
+                                  substring(year, 3)))
+}
+
+descrip <- "Shallow Flood Wetness Cover Refinement Field Test"
+pull_csc_locs <- function(descrip){
+  query1 <- paste0("SELECT DISTINCT
+                   idep.deployment AS csc, idep.easting_utm AS x, 
+                   idep.northing_utm AS y
+                   FROM instruments.deployments idep
+                   JOIN instruments.areas ia
+                   ON idep.area_id=ia.area_id
+                   WHERE ia.description='", descrip, "'")
+  csc_data <- query_owenslake(query2)
+  csc_locs <- csc_data[substr(csc_data$csc, 2, 3)!="Cam", ]
+  csc_locs
+}
+
 clean_flux_sfwct <- function(df_in){
   df_out <- df_in 
   df_out$dca <- gsub("-", "", df_out$dca)
@@ -91,19 +130,22 @@ rank_flux_cells <- function(df_in){
 #' @import dplyr
 #' @param df_in Data frame of sand mass data.
 #' @return Data frame of sumamrized results.
-summarize_sandmass <- function(df_in){
-  df_in$treatment <- paste0("t_", df_in$treatment)
-  treat_sum <- df_in %>% group_by(dca, treatment) %>% 
-    summarize(avg.sand.mass=mean(sand.mass)) %>% ungroup()
+summarize_sandmass <- function(df_in, wetness, period){
+  df_in$trgtwet <- gsub("%", "", df_in$treatment)
+  treat_sum <- df_in %>% group_by(dca, trgtwet) %>% 
+    summarize(avg.sand.mass=mean(sand.mass)) %>% ungroup() %>%
+    left_join(select(wetness, dca, trgtwet, dryness), by=c("dca", "trgtwet"))
   control_sum <- treat_sum %>% group_by(dca) %>%
-    do(control.mass=filter(., treatment=="t_0%")$avg.sand.mass)
+    do(control.mass=filter(., trgtwet==0)$avg.sand.mass,
+       control.dry=filter(., trgtwet==0)$dryness)
   control_sum[control_sum$dca=="T13", 2] <- NA
+  control_sum[control_sum$dca=="T13", 3] <- NA
   control_sum$control.mass <- unlist(control_sum$control.mass)
+  control_sum$control.dry <- unlist(control_sum$control.dry)
   treat_sum <- inner_join(treat_sum, control_sum, by="dca") %>%
-    mutate(control.eff=1-(avg.sand.mass/control.mass)) %>% 
-    select(-control.mass)
+    mutate(control.eff=1-((avg.sand.mass*dryness)/(control.mass*control.dry)))
   treat_sum$control.eff <- round(treat_sum$control.eff, 2) * 100
-  treat_sum[treat_sum$treatment=="t_0%", ]$control.eff <- NA
+  treat_sum[treat_sum$trgtwet==0, ]$control.eff <- NA
   treat_sum$avg.sand.mass <- round(treat_sum$avg.sand.mass, 2)
   treat_sum
 }

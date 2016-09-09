@@ -19,8 +19,7 @@ monthly_mass <- flux_df %>% group_by(csc, month, year, period, area, treatment, 
 
 dust_season <- c("0415", "0515", "0615", "1115", "1215", "0116", "0216", 
                  "0316", "0416", "0516", "0616")
-mass_summary <- vector(mode="list", 
-                       length=length(dust_season))
+mass_summary <- vector(mode="list", length=length(dust_season))
 names(mass_summary) <- dust_season
 for (i in names(mass_summary)){
   calc_wetness <- ce_wetness[[i]]
@@ -32,37 +31,69 @@ for (i in names(mass_summary)){
   mass_summary[[i]]$control.eff <- clean_ce(mass_summary[[i]]$control.eff)
 }
 
+cutoff <- 10 # minimum 0% area monthly sand mass for inclusion in results
 ce_summ <- data.frame(dca=mass_summary[[10]]$dca, 
                           trgtwet=mass_summary[[10]]$trgtwet)
+control_mass_summ <- data.frame(dca=mass_summary[[10]]$dca, 
+                          trgtwet=mass_summary[[10]]$trgtwet)
 for (i in names(mass_summary)){
-  tmp <- select(mass_summary[[i]], dca, trgtwet, control.eff)
+  tmp <- mass_summary[[i]] %>% filter(control.mass > cutoff) %>%
+    select(dca, trgtwet, control.eff)
   names(tmp)[3] <- i
   ce_summ <- left_join(ce_summ, tmp, by=c("dca", "trgtwet"))
 }
 write.csv(ce_summ, file="~/Desktop/mass_ce_summary.csv", row.names=F)
 
+control_mass_summ <- data.frame(dca=mass_summary[[10]]$dca, 
+                          trgtwet=mass_summary[[10]]$trgtwet)
+for (i in names(mass_summary)){
+  tmp <- mass_summary[[i]] %>% 
+    select(dca, trgtwet, control.mass)
+  names(tmp)[3] <- i
+  control_mass_summ <- left_join(control_mass_summ, tmp, by=c("dca", "trgtwet"))
+}
+cm_summ <- melt(control_mass_summ, id.vars=c("dca", "trgtwet"), 
+                value.name="control.mass")
+
 swir_ce <- swir_summ %>% select(-average) %>% 
   melt(id.vars=c("dca", "trgtwet"), value.name="swir") %>%
   left_join(melt(ce_summ, id.vars=c("dca", "trgtwet"), value.name="ce"),
-            by=c("dca", "trgtwet", "variable"), suffix=c(".swir", ".wet"))
+            by=c("dca", "trgtwet", "variable"), suffix=c(".swir", ".wet")) %>%
+  left_join(cm_summ, by=c("dca", "trgtwet", "variable")) 
 swir_ce$ce <- as.numeric(swir_ce$ce)
 
 ce_curve <- data.frame(wetness=c(.72, .64, .28, 0), ce=c(99, 94, 59, 0))
 
-swir_ce_plot <- swir_ce %>% filter(dca=='T26', !is.na(swir), !is.na(ce)) %>%
-  rename(wetness=swir) %>%
+swir_ce_plot <- swir_ce %>% filter(ce>0, !is.na(swir), !is.na(ce)) %>%
+  rename(wetness=swir) %>% 
+#  rbind(data.frame(dca=NA, trgtwet=NA, variable=NA, 
+#                   wetness=0, ce=0, control.mass=1)) %>%
   ggplot(aes(x=wetness, y=ce)) +
-  geom_point(aes(color=trgtwet)) +
-  geom_curve(data=ce_curve, mapping=aes(x=wetness[4], y=ce[4], linetype="SIP CE Curve", 
-                                        xend=wetness[1], yend=ce[1]),
-             curvature=-.2, color="red") +
-  ggtitle("T26 SFWCRFT Sand Mass Control Efficiency\n2015/2016 Dust Season") +
-  scale_colour_manual(name="Target Wetness", values=c("red", "blue", "green", "orange")) +
-  scale_linetype(name="")
+  geom_point(aes(size=control.mass, color=dca)) +
+  ggtitle("Monthly Sand Mass Control Efficiency\n2015/2016 Dust Season") +
+  scale_colour_manual(name="DCA", values=c("red", "blue", "green", "orange")) +
+  scale_size_continuous(name="0% Area Mass") 
 
 png(filename="~/Desktop/swir_ce_plot.png", width=8, height=6, units="in", 
     res=300)
 print(swir_ce_plot)
+dev.off()
+
+sandfence_plot <- swir_ce %>% filter(ce>0, !is.na(swir), !is.na(ce)) %>%
+  filter(variable %in% c("0316", "0416", "0516", "0616")) %>%
+  rename(wetness=swir) %>% 
+#  rbind(data.frame(dca=NA, trgtwet=NA, variable=NA, 
+#                   wetness=0, ce=0, control.mass=1)) %>%
+  ggplot(aes(x=wetness, y=ce)) +
+  geom_point(aes(size=control.mass, color=dca)) +
+  ggtitle("Monthly Sand Mass Control Efficiency\n2015/2016 Dust Season") +
+  scale_colour_manual(name="DCA", values=c("red", "blue", "green", "orange")) +
+  scale_size_continuous(name="0% Area Mass") +
+  geom_text(aes(label=ce))
+
+png(filename="~/Desktop/sandfence_plot.png", width=8, height=6, units="in", 
+    res=300)
+print(sandfence_plot)
 dev.off()
 
 areas <- unique(monthly_mass$dca)

@@ -51,22 +51,23 @@ clean_flux_sfwct <- function(df_in){
   df_out
 }
 
-summarize_flux_sfwct <- function(df1){
-  df1$treatment <- paste0("t_", substr(df1$dcm, 5, nchar(df1$dcm)-1))
-  df1$area <- substr(df1$dcm, 1, 3)
-  df2 <- df1 %>% group_by(area, treatment, day) %>% 
-    summarize(sand=mean(sand.flux)) %>% ungroup()
-  df_temp <- summarize_ce(df2) %>% arrange(day, area) %>%
-    filter(control.sand>1)
-  if (nrow(df_temp)==0) {
-    return("No days with control area sand flux > 1")
-  } else{
-  df_out <- dcast(df_temp, area + day + control.sand ~ treatment,
-                  value.var="control.eff") %>%
-  filter(!is.na(t_45)) %>% select(-t_0) %>% group_by(area) %>%
-  arrange(desc(control.sand))
-  }
-  df_out
+summarize_flux_sfwct <- function(df_in, wet_df){
+  df_in$trgtwet <- gsub("%", "", df_in$treatment)
+  treat_sum <- df_in %>% group_by(dca, trgtwet, day, period) %>% 
+    summarize(avg.flux=mean(sand.flux)) %>% ungroup() 
+  treat_sum <- left_join(treat_sum, wet_df, 
+                         by=c("dca", "trgtwet", "period"))
+  control_sum <- filter(treat_sum, trgtwet=="0") %>% 
+    select(-trgtwet, -wetness) %>% rename(control.flux=avg.flux, 
+                                          control.dry=dryness)
+  control_sum <- control_sum[!duplicated(control_sum), ]
+  treat_sum <- inner_join(treat_sum, control_sum, by=c("dca", "day")) %>%
+    mutate(control.eff=1-((avg.flux*dryness)/(control.flux*control.dry)))
+  treat_sum$control.eff <- round(treat_sum$control.eff, 2) * 100
+  treat_sum[treat_sum$trgtwet=="0", ]$control.eff <- NA
+  treat_sum <- filter(treat_sum, trgtwet!="0") %>% 
+    arrange(dca, day, trgtwet)
+  treat_sum
 }
 
 #' Summarize SFWCT sand results for control efficiency

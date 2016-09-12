@@ -1,3 +1,5 @@
+# This script compares the original DRI SWIR method (with invariant area 
+# adjustment to the atmospheric adjustement (by Formation)
 load_all("~/code/owensData")
 load_all()
 library(rgdal)

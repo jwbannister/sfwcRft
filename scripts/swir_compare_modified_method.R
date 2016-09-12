@@ -1,3 +1,5 @@
+# This script compares the modified DRI SWIR adjustement (LandSat adjusted) to 
+# the atmospheric adjustment only (by Formation)
 load_all()
 load_all("~/code/owensData")
 library(rgdal)

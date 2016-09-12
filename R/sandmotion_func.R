@@ -32,7 +32,7 @@ pull_csc_locs <- function(descrip){
                    JOIN instruments.areas ia
                    ON idep.area_id=ia.area_id
                    WHERE ia.description='", descrip, "'")
-  csc_data <- query_owenslake(query2)
+  csc_data <- query_owenslake(query1)
   csc_locs <- csc_data[substr(csc_data$csc, 2, 3)!="Cam", ]
   csc_locs
 }

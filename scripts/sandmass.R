@@ -63,37 +63,28 @@ swir_ce <- swir_summ %>% select(-average) %>%
 swir_ce$ce <- as.numeric(swir_ce$ce)
 
 ce_curve <- data.frame(wetness=c(.72, .64, .28, 0), ce=c(99, 94, 59, 0))
+swir_ce$t26.filter <- ifelse((swir_ce$dca=='T26') & 
+                            !(swir_ce$variable %in% c("0316", "0416", "0516", "0616")), 
+                            FALSE, TRUE)
+swir_ce$swir <- swir_ce$swir*100
 
-swir_ce_plot <- swir_ce %>% filter(ce>0, !is.na(swir), !is.na(ce)) %>%
-  rename(wetness=swir) %>% 
-#  rbind(data.frame(dca=NA, trgtwet=NA, variable=NA, 
-#                   wetness=0, ce=0, control.mass=1)) %>%
+swir_ce_plot <- swir_ce %>% filter(ce>0, !is.na(swir), !is.na(ce), t26.filter) %>%
+  rename(wetness=swir) %>%
   ggplot(aes(x=wetness, y=ce)) +
   geom_point(aes(size=control.mass, color=dca)) +
-  ggtitle("Monthly Sand Mass Control Efficiency\n2015/2016 Dust Season") +
+  ggtitle("Monthly Sand Mass Control Efficiency - 2015/2016 Dust Season") +
   scale_colour_manual(name="DCA", values=c("red", "blue", "green", "orange")) +
-  scale_size_continuous(name="0% Area Mass") 
+  scale_size_continuous(name="0% Area Mass") +
+#  stat_function(xlim=c(20, 80), linetype="dashed", color="black", 
+#                fun = function(x) 100 - 10000/((x - 5)^2.4)) +
+  scale_y_continuous(name="Control Efficiency (%)", 
+                     breaks=seq(0, 100, 10)) +
+  scale_x_continuous(name="SWIR Estimated Wetness Cover (%)", 
+                     breaks=seq(0, 80, 10)) 
 
 png(filename="~/Desktop/swir_ce_plot.png", width=8, height=6, units="in", 
     res=300)
 print(swir_ce_plot)
-dev.off()
-
-sandfence_plot <- swir_ce %>% filter(ce>0, !is.na(swir), !is.na(ce)) %>%
-  filter(variable %in% c("0316", "0416", "0516", "0616")) %>%
-  rename(wetness=swir) %>% 
-#  rbind(data.frame(dca=NA, trgtwet=NA, variable=NA, 
-#                   wetness=0, ce=0, control.mass=1)) %>%
-  ggplot(aes(x=wetness, y=ce)) +
-  geom_point(aes(size=control.mass, color=dca)) +
-  ggtitle("Monthly Sand Mass Control Efficiency\n2015/2016 Dust Season") +
-  scale_colour_manual(name="DCA", values=c("red", "blue", "green", "orange")) +
-  scale_size_continuous(name="0% Area Mass") +
-  geom_text(aes(label=ce))
-
-png(filename="~/Desktop/sandfence_plot.png", width=8, height=6, units="in", 
-    res=300)
-print(sandfence_plot)
 dev.off()
 
 areas <- unique(monthly_mass$dca)
@@ -107,3 +98,24 @@ for (i in areas){
   }
 }
 
+## find best fit curve y = a - (b/(x - d)^g)
+#coefficients <- data.frame(a=c(), b=c(), d=c(), g=c(), rms=c())
+#for (a in seq(100, 103, 0.1)){
+#  print(a)
+#  for(b in seq(8000, 12000, 500)){
+#    print(b)
+#    for (d in seq(2, 8, 0.1)){
+#      for (g in seq(1.5, 3, 0.1)){
+#        err <- apply(swir_ce[!is.na(swir_ce$swir) & swir_ce$swir>20 & 
+#                     !is.na(swir_ce$ce), 
+#                     c('swir', 'ce')], 1, 
+#                     function(x) x[2] - a - b/((x[1] - d)^g))
+#        rms <- sqrt(mean(err^2))
+#        coefficients <- rbind(coefficients, 
+#                              data.frame(a=a, b=b, d=d, g=g, rms=rms))
+#      }
+#    }
+#  }
+#}
+
+        

@@ -49,7 +49,7 @@ for (k in date_index){
   }
 }
 
-focused_wetness <- wetness[names(wetness)!="062015"]
+focused_wetness <- wetness[!(names(wetness) %in% c("050915", "062015"))]
 names(focused_wetness) <- paste0(substr(names(focused_wetness), 1, 2), 
                                  substring(names(focused_wetness), 5))
 month_index <- c("0415", "0515", "0615", "1015", "1115", "1215", "0116",
@@ -65,10 +65,10 @@ for (i in names(focused_wetness)){
                            by=c("dca", "trgtwet"))
 }
 # remove areas when not in operation
-swir_summ[swir_summ$dca=='T26', 3:5] <- NA
+swir_summ[swir_summ$dca=='T26', 3:4] <- NA
 swir_summ[swir_summ$dca=='T29', 3] <- NA
 
-swir_summ$average <- apply(as.matrix(swir_summ[ , 3:10]), 1, 
+swir_summ$average <- apply(as.matrix(swir_summ[ , 3:9]), 1, 
                            function(x) round(mean(x, na.rm=T), 2))
 for (j in names(ce_wetness)){
   if (is.null(swir_summ[[j]])){

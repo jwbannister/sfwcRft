@@ -14,7 +14,10 @@ flux_df <- pull_5min_flux(start.date, end.date, descrip)
 daily_flux <- flux_df %>% 
   mutate(day = as.Date(ymd(substring(datetime, 1, 10)))) %>%
   group_by(csc, day, period, treatment, dca) %>%  
-  summarize(sand.flux=round(sum(sand_flux), 2)) %>% ungroup()
+  do(.$wd <- .$winddirection_10m[.$windspeed_10m==max(.$windspeed_10m)]) %>% 
+  summarize(sand.flux=round(sum(sand_flux), 2),
+            ws=max(windspeed_10m), wd=max(wd)) %>%
+  ungroup()
 tmp <- daily_flux %>% select(csc, treatment, dca)
 tmp <- tmp[!duplicated(tmp$csc), ]
 expand_daily <- expand.grid(csc=unique(daily_flux$csc), 
@@ -68,16 +71,23 @@ flux_melt[[i]] <- daily_ce %>% filter(dca==i) %>%
 write.csv(flux_melt[['T26']], file="~/Desktop/t26_flux.csv", row.names=F)
 
 ce_curve <- data.frame(wetness=c(.72, .64, .28, 0), ce=c(99, 94, 59, 0))
-swir_flux_plot <- daily_ce %>% filter(control.eff>0) %>%
+daily_ce$t26.filter <- ifelse((daily_ce$dca=='T26') & 
+                              (daily_ce$day<'2016-03-15'), 
+                            FALSE, TRUE)
+daily_ce$wetness <- daily_ce$wetness*100
+swir_flux_plot <- daily_ce %>% filter(control.eff>0, t26.filter) %>%
   rename(ce=control.eff) %>%
   ggplot(aes(x=wetness, y=ce)) +
   geom_point(aes(color=dca, size=control.flux)) +
-  ggtitle("Daily Sand Flux Control Efficiency\n2015/2016 Dust Season") +
-  geom_smooth(method="glm", family=gaussian(link="log")) + 
+  ggtitle("Daily Sand Flux Control Efficiency - 2015/2016 Dust Season") +
   scale_colour_manual(name="DCA", 
                       values=c("red", "blue", "green", "orange")) +
-  scale_size_continuous(name="0% Area Flux")
-
+  scale_size_continuous(name="0% Area Flux") +
+  stat_function(xlim=c(20, 80), linetype="dashed", color="black", 
+                fun = function(x) 100 - 10000/((x - 5)^2.4)) +
+  scale_y_continuous(name="Control Efficiency (%)", breaks=seq(0, 100, 10)) +
+  scale_x_continuous(name="SWIR Estimated Wetness Cover (%)", 
+                     breaks=seq(0, 80, 10)) 
 
 png(filename="~/Desktop/swir_flux_plot.png", width=8, height=6, units="in", 
     res=300)

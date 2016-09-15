@@ -70,40 +70,38 @@ names(ce_table) <- c("DCA", "Date", "Target 45%", "Target 55%", "Target 65%",
                      "Target 75%")
 write.csv(ce_table, file="./report/output/flux_ce_table.csv", row.names=F)
   
-
-print(length(unique(filter(daily_ce, dca=="T10", !is.na(control.eff))$day)))
-print(length(unique(filter(daily_ce, dca=="T26", !is.na(control.eff))$day)))
-print(length(unique(filter(daily_ce, dca=="T29", !is.na(control.eff))$day)))
-
-flux_melt <- vector(mode="list", length=3)
-names(flux_melt) <- unique(daily_ce$dca)
-for (i in unique(daily_ce$dca)){
-flux_melt[[i]] <- daily_ce %>% filter(dca==i) %>%
-  select(dca, trgtwet, day, ce=control.eff) %>%
-  dcast(dca + day ~ trgtwet)
-}
-write.csv(flux_melt[['T26']], file="~/Desktop/t26_flux.csv", row.names=F)
+tmp <- ce_table
+names(tmp) <- c("dca", "date", "t45", "t55", "t65", "t75")
+tmp <- tmp %>% 
+  reshape2::melt(id.vars=c("dca", "date")) 
+tmp$value <- as.numeric(gsub("%", "", tmp$value))
+mean_daily_tbl <- tmp %>%
+  group_by(dca, variable) %>%
+  summarize(mean.wet = round(mean(value), 0))
+mean_daily_tbl <- mean_daily_tbl[complete.cases(mean_daily_tbl), ]
+mean_daily_tbl$mean.wet <- paste0(mean_daily_tbl$mean.wet, "%")
+mean_daily_tbl$variable <- paste0(gsub("t", "", mean_daily_tbl$variable), "%")
+names(mean_daily_tbl) <- c("DCA", "Target Wetness", "Average CE")
+write.csv(mean_daily_tbl, file="./report/output/mean_daily_flux.csv", 
+          row.names=FALSE)
 
 ce_curve <- data.frame(wetness=c(.72, .64, .28, 0), ce=c(99, 94, 59, 0))
-daily_ce$t26.filter <- ifelse((daily_ce$dca=='T26') & 
-                              (daily_ce$day<'2016-03-15'), 
+ce_plot_data <- daily_ce
+ce_plot_data$t26.filter <- ifelse((ce_plot_data$dca=='T26') & 
+                              (ce_plot_data$day<'2016-03-15'), 
                             FALSE, TRUE)
-daily_ce$wetness <- daily_ce$wetness*100
-swir_flux_plot <- daily_ce %>% filter(control.eff>0, t26.filter) %>%
+ce_plot_data$wetness <- ce_plot_data$wetness*100
+swir_flux_plot <- ce_plot_data %>% filter(control.eff>0, t26.filter) %>%
   rename(ce=control.eff) %>%
   ggplot(aes(x=wetness, y=ce)) +
   geom_point(aes(color=dca, size=control.flux)) +
-  ggtitle("Daily Sand Flux Control Efficiency - 2015/2016 Dust Season") +
   scale_colour_manual(name="DCA", 
                       values=c("red", "blue", "green", "orange")) +
   scale_size_continuous(name="0% Area Flux") +
-  stat_function(xlim=c(20, 80), linetype="dashed", color="black", 
-                fun = function(x) 100 - 10000/((x - 5)^2.4)) +
   scale_y_continuous(name="Control Efficiency (%)", breaks=seq(0, 100, 10)) +
   scale_x_continuous(name="SWIR Estimated Wetness Cover (%)", 
                      breaks=seq(0, 80, 10)) 
-
-png(filename="~/Desktop/swir_flux_plot.png", width=8, height=6, units="in", 
+png(filename="./report/output/swir_flux_plot.png", width=8, height=6, units="in", 
     res=300)
 print(swir_flux_plot)
 dev.off()

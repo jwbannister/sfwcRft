@@ -52,20 +52,21 @@ clean_flux_sfwct <- function(df_in){
 }
 
 summarize_flux_sfwct <- function(df_in, wet_df){
-  df_in$trgtwet <- gsub("%", "", df_in$treatment)
+  wet_df$dryness <- 1 - wet_df$wet
+  df_in$trgtwet <- as.integer(gsub("%", "", df_in$treatment))
   treat_sum <- df_in %>% group_by(dca, trgtwet, day, period) %>% 
     summarize(avg.flux=mean(sand.flux)) %>% ungroup() 
   treat_sum <- left_join(treat_sum, wet_df, 
                          by=c("dca", "trgtwet", "period"))
-  control_sum <- filter(treat_sum, trgtwet=="0") %>% 
-    select(-trgtwet, -wetness) %>% rename(control.flux=avg.flux, 
+  control_sum <- filter(treat_sum, trgtwet==0) %>% 
+    select(-trgtwet, -wet) %>% rename(control.flux=avg.flux, 
                                           control.dry=dryness)
   control_sum <- control_sum[!duplicated(control_sum), ]
-  treat_sum <- inner_join(treat_sum, control_sum, by=c("dca", "day")) %>%
+  treat_sum <- left_join(treat_sum, control_sum, by=c("dca", "day")) %>%
     mutate(control.eff=1-((avg.flux*dryness)/(control.flux*control.dry)))
   treat_sum$control.eff <- round(treat_sum$control.eff, 2) * 100
-  treat_sum[treat_sum$trgtwet=="0", ]$control.eff <- NA
-  treat_sum <- filter(treat_sum, trgtwet!="0") %>% 
+  treat_sum[treat_sum$trgtwet==0, ]$control.eff <- NA
+  treat_sum <- filter(treat_sum, trgtwet!=0) %>% 
     arrange(dca, day, trgtwet)
   treat_sum
 }
@@ -132,7 +133,7 @@ rank_flux_cells <- function(df_in){
 #' @param df_in Data frame of sand mass data.
 #' @return Data frame of sumamrized results.
 summarize_sandmass <- function(df_in, wetness, period){
-  df_in$trgtwet <- gsub("%", "", df_in$treatment)
+  df_in$trgtwet <- as.integer(gsub("%", "", df_in$treatment))
   treat_sum <- df_in %>% group_by(dca, trgtwet) %>% 
     summarize(avg.sand.mass=mean(sand.mass)) %>% ungroup() %>%
     left_join(select(wetness, dca, trgtwet, dryness), by=c("dca", "trgtwet"))

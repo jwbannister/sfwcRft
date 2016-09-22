@@ -17,95 +17,97 @@ monthly_mass <- flux_df %>% group_by(csc, month, year, period, area, treatment, 
   summarize(sand.mass=round(sum(sand_flux)*geom_adj, 1)) %>%
   arrange(year, month) %>% ungroup()
 
-# filter out CSC sites which experienced sand intrusion from control plot
+# filter out CSC sites which experienced sand intrusion from control plot,   
+# months that are not part of the dust season 
+intrusion_list <- vector(mode="list", length=0)
+intrusion_list[['1115']] <- c('1540', '1538', '1537', '1536', '1535', '1534',
+                           '1533', '1532', '1531','1524', '1530', '1522',
+                           '1521', '1520', '1510')
+intrusion_list[['1215']] <- c('1540', '1538', '1537', '1535', '1534', '1533',
+                           '1532', '1531', '1530')
+intrusion_list[['0216']] <- c('1538', '1534', '1532', '1531', '1530', '1524',
+                           '1522', '1521', '1520')
+intrusion_list[['0316']] <- c('1535', '1522', '1521', '1520')
+intrusion_list[['0416']] <- c('1521', '1522', '1523', '1513', '1520', '1511',
+                           '1512')
+intrusion_list[['0516']] <- c('1530', '1524', '1523', '1522', '1521')
+                                                    
 filtered_mass <- monthly_mass %>%
-  filter(!(dca=='T26' & period=='1115' & csc %in% c('1540', '1538', '1537', 
-                                                    '1536', '1535', '1534',
-                                                    '1533', '1532', '1531',
-                                                    '1524', '1530', '1522', 
-                                                    '1521', '1520', '1510'))) %>%
-  filter(!(dca=='T26' & period=='1215' & csc %in% c('1540', '1538', '1537', 
-                                                    '1535', '1534', '1533',
-                                                    '1532', '1531', '1530'))) %>%
-  filter(!(dca=='T26' & period=='0216' & csc %in% c('1538', '1534', '1532', 
-                                                    '1531', '1530', '1524',
-                                                    '1522', '1521', '1520'))) %>%
-  filter(!(dca=='T26' & period=='0316' & csc %in% c('1535', '1522', '1521', 
-                                                    '1520'))) %>%
-  filter(!(dca=='T26' & period=='0416' & csc %in% c('1521', '1522', '1523', 
-                                                    '1513', '1520', '1511', 
-                                                    '1512'))) %>%
-  filter(!(dca=='T26' & period=='0516' & csc %in% c('1530', '1524', '1523', 
-                                                    '1522', '1521')))
+  filter(!(dca=='T26' & period=='1115' & csc %in% intrusion_list[['1115']])) %>%
+  filter(!(dca=='T26' & period=='1215' & csc %in% intrusion_list[['1215']])) %>%
+  filter(!(dca=='T26' & period=='0216' & csc %in% intrusion_list[['0216']])) %>%
+  filter(!(dca=='T26' & period=='0316' & csc %in% intrusion_list[['0316']])) %>%
+  filter(!(dca=='T26' & period=='0416' & csc %in% intrusion_list[['0416']])) %>%
+  filter(!(dca=='T26' & period=='0516' & csc %in% intrusion_list[['0516']])) 
 
 dust_season <- c("0415", "0515", "0615", "1115", "1215", "0116", "0216", 
                  "0316", "0416", "0516", "0616")
-mass_summary <- vector(mode="list", length=length(dust_season))
-names(mass_summary) <- dust_season
-for (i in names(mass_summary)){
-  calc_wetness <- ce_wetness[[i]]
-  calc_wetness$dryness <- 1 - calc_wetness[ , 3]
-  mass_summary[[i]] <- filtered_mass %>%
-    filter(period==i) %>%
-    summarize_sandmass(., wetness=calc_wetness, period=i)
-  mass_summary[[i]]$period <- i
-  mass_summary[[i]]$control.eff <- clean_ce(mass_summary[[i]]$control.eff)
+filtered_mass <- filtered_mass %>% filter(period %in% dust_season) %>%
+  select(-area, -month, -year)
+filtered_mass$period <- ordered(filtered_mass$period, 
+                                levels=c('0415', '0515', '0615', '1115', 
+                                         '1215', '0116', '0216', '0316', 
+                                         '0416', '0516', '0616'))
+site_mass <- filtered_mass %>%
+  dcast(csc + dca + treatment ~ period, value.var='sand.mass')
+write.csv(site_mass, 
+          file="~/dropbox/owens/sfwcrft/code_output/site_mass.csv", 
+          row.names=F)
+
+avg_mass <- filtered_mass %>% group_by(dca, treatment, period) %>%
+  summarize(avg.mass = round(mean(sand.mass), 2)) %>%
+  dcast(dca + treatment ~ period)
+write.csv(avg_mass, 
+          file="~/dropbox/owens/sfwcrft/code_output/avg_mass.csv", 
+          row.names=F)
+
+prds <- unique(filtered_mass$period)
+for (i in 1:length(prds)){
+  prd <- prds[i]
+  wet_tmp <- filter(wet_record, period==prd)
+  wet_tmp$dryness <- 1 - wet_tmp$wet
+  tmp_summary <- filtered_mass %>% filter(period==prd) %>%
+    summarize_sandmass(., wetness=wet_tmp, period=prd)
+  tmp_summary$period <- prd
+  ifelse(i > 1, ce_summary <- rbind(ce_summary, tmp_summary), 
+         ce_summary <- tmp_summary)
 }
 
 cutoff <- 10 # minimum 0% area monthly sand mass for inclusion in results
-ce_summ <- data.frame(dca=mass_summary[[10]]$dca, 
-                          trgtwet=mass_summary[[10]]$trgtwet)
-control_mass_summ <- data.frame(dca=mass_summary[[10]]$dca, 
-                          trgtwet=mass_summary[[10]]$trgtwet)
-for (i in names(mass_summary)){
-  tmp <- mass_summary[[i]] %>% filter(control.mass > cutoff) %>%
-    select(dca, trgtwet, control.eff)
-  names(tmp)[3] <- i
-  ce_summ <- left_join(ce_summ, tmp, by=c("dca", "trgtwet"))
+for (i in 1:nrow(ce_summary)){
+  ce_summary$control.eff[i] <- ifelse(ce_summary$control.mass[i] < cutoff, 
+                                      NA, ce_summary$control.eff[i])
 }
-write.csv(ce_summ, file="~/Desktop/mass_ce_summary.csv", row.names=F)
+mass_ce_tbl <- ce_summary %>% 
+  select(dca, trgtwet, period, control.eff) %>%
+  dcast(dca + trgtwet ~ period)
+write.csv(mass_ce_tbl, 
+          file="~/dropbox/owens/sfwcrft/code_output/mass_ce_tbl.csv", 
+          row.names=F)
 
-control_mass_summ <- data.frame(dca=mass_summary[[10]]$dca, 
-                          trgtwet=mass_summary[[10]]$trgtwet)
-for (i in names(mass_summary)){
-  tmp <- mass_summary[[i]] %>% 
-    select(dca, trgtwet, control.mass)
-  names(tmp)[3] <- i
-  control_mass_summ <- left_join(control_mass_summ, tmp, by=c("dca", "trgtwet"))
-}
-cm_summ <- melt(control_mass_summ, id.vars=c("dca", "trgtwet"), 
-                value.name="control.mass")
+mass_ce_melt <- melt(mass_ce_tbl, id.vars=c("dca", "trgtwet"), 
+                     variable.name="period", value.name="ce")
+cm_summ <- ce_summary %>% select(dca, trgtwet, period, control.mass) %>%
+  filter(control.mass > cutoff)
 
-swir_ce <- swir_summ %>% select(-average) %>% 
-  melt(id.vars=c("dca", "trgtwet"), value.name="swir") %>%
-  left_join(melt(ce_summ, id.vars=c("dca", "trgtwet"), value.name="ce"),
-            by=c("dca", "trgtwet", "variable"), suffix=c(".swir", ".wet")) %>%
-  left_join(cm_summ, by=c("dca", "trgtwet", "variable")) 
-swir_ce$ce <- as.numeric(swir_ce$ce)
+plot_df <- wet_record %>%
+  left_join(mass_ce_melt, by=c("dca", "trgtwet", "period")) %>%
+  left_join(cm_summ, by=c("dca", "trgtwet", "period"))
+plot_df$wet <- plot_df$wet * 100
 
-ce_curve <- data.frame(wetness=c(.72, .64, .28, 0), ce=c(99, 94, 59, 0))
-swir_ce$t26.filter <- ifelse((swir_ce$dca=='T26') & 
-                            !(swir_ce$variable %in% c("0316", "0416", "0516", "0616")), 
-                            FALSE, TRUE)
-swir_ce$swir <- swir_ce$swir*100
-
-swir_ce_plot <- swir_ce %>% filter(ce>0, !is.na(swir), !is.na(ce), t26.filter) %>%
-  rename(wetness=swir) %>%
-  ggplot(aes(x=wetness, y=ce)) +
+wet_mass_plot <- plot_df %>% filter(ce>0) %>%
+  ggplot(aes(x=wet, y=ce)) +
   geom_point(aes(size=control.mass, color=dca)) +
   ggtitle("Monthly Sand Mass Control Efficiency - 2015/2016 Dust Season") +
   scale_colour_manual(name="DCA", values=c("red", "blue", "green", "orange")) +
   scale_size_continuous(name="0% Area Mass") +
-#  stat_function(xlim=c(20, 80), linetype="dashed", color="black", 
-#                fun = function(x) 100 - 10000/((x - 5)^2.4)) +
   scale_y_continuous(name="Control Efficiency (%)", 
                      breaks=seq(0, 100, 10)) +
-  scale_x_continuous(name="SWIR Estimated Wetness Cover (%)", 
+  scale_x_continuous(name="Wetness Cover (%)", 
                      breaks=seq(0, 80, 10)) 
-
-png(filename="~/Desktop/swir_ce_plot.png", width=8, height=6, units="in", 
-    res=300)
-print(swir_ce_plot)
+png(filename="~/dropbox/owens/sfwcrft/code_output/wet_mass_ce_plot.png", 
+    width=8, height=6, units="in", res=300)
+print(wet_mass_plot)
 dev.off()
 
 areas <- unique(monthly_mass$dca)

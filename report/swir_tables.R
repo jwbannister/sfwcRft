@@ -32,7 +32,9 @@ for (i in 3:10){
 # remove areas when not in operation
 swir_tbl[swir_tbl$DCA=='T26', 3] <- NA
 swir_tbl[swir_tbl$DCA=='T29-2', 3:5] <- NA
-write.csv(swir_tbl, file="./report/output/swir_target_table.csv", row.names=F)
+write.csv(swir_tbl, 
+          file="~/dropbox/owens/sfwcrft/code_output/swir_target_table.csv", 
+          row.names=F)
 
 query1 <- "SELECT dcm as dca, trgtwet, day, round AS wet
            FROM sfwct.wetness_summary 
@@ -65,8 +67,8 @@ swir_trans_plot <- swir_trans %>%
   scale_y_continuous(name="Ground Estimated Wetness (%)", 
                      breaks=seq(0, 100, 10)) +
   geom_abline(intercept=0, slope=1, color="blue") 
-png(filename="./report/output/swir_trans_plot.png", height=6, width=6, 
-    units="in", res=300)
+png(filename="~/dropbox/owens/sfwcrft/code_output/swir_trans_plot.png", 
+    height=6, width=6, units="in", res=300)
 print(swir_trans_plot)
 dev.off()
 
@@ -81,5 +83,44 @@ for (i in 3:10){
     sapply(swir_trans_cast[ , i], 
            function(x) ifelse(is.na(x), "NA", paste0(x * 100, "%")))
 }
-write.csv(swir_trans_cast, file="./report/output/swir_trans_table.csv", 
-         row.names=FALSE) 
+write.csv(swir_trans_cast, 
+          file="~/dropbox/owens/sfwcrft/code_output/swir_trans_table.csv", 
+          row.names=FALSE) 
+
+swir_plot_df <- swir_tbl
+names(swir_plot_df) <- c("dca", "trgtwet", "04/16/2015", "06/08/2015", 
+                         "06/20/2015", "11/30/2015", "12/01/2015",
+                         "04/26/2016", "05/27/2016", "06/24/2016")
+swir_plot_melt <- reshape2::melt(swir_plot_df, id.vars=c("dca", "trgtwet"))
+swir_plot_melt$variable <- ordered(swir_plot_melt$variable, 
+                                   levels=c("04/16/2015", "06/08/2015", 
+                                            "06/20/2015", "11/30/2015", 
+                                            "12/01/2015", "04/26/2016",
+                                            "05/27/2016", "06/24/2016"))
+swir_plot_melt$trgtwet <- as.numeric(gsub("%", "", swir_plot_melt$trgtwet)) 
+swir_plot_melt$value <- as.numeric(gsub("%", "", swir_plot_melt$value)) 
+swir_tracking <- vector(mode="list", length=4)
+names(swir_tracking) <- c("T10-1b", "T26", "T13-1", "T29-2")
+for (i in names(swir_tracking)){
+  clrs <- c('#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00')
+  ab_ints <- unique(filter(swir_plot_melt, dca==i)$trgtwet)
+  n <- length(ab_ints)
+  swir_tracking[[i]] <- swir_plot_melt %>% filter(dca==i) %>%
+    ggplot(aes(x=variable, y=value, group=factor(trgtwet))) +
+    geom_path(aes(color=factor(trgtwet))) +
+    scale_color_manual(name="Target\nWetness (%)", values=clrs[1:n]) +
+    scale_y_continuous(name="SWIR Estimated Wetness (%)", 
+                       breaks=c(0, 10, 20, 30, 40, 45, 50, 55, 60, 65, 70, 75, 
+                                80, 90, 100), 
+                       minor_breaks=NULL, limits=c(0, 100)) +
+    geom_abline(slope=0, intercept=ab_ints, linetype="dashed", 
+                color=clrs[1:n]) +
+    xlab("SWIR Date") + 
+    theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1)) +
+    ggtitle(i)
+  png(filename=paste0("~/dropbox/owens/sfwcrft/code_output/", i, "_swir.png"), 
+      height=6, width=9, units="in", res=300)
+  print(swir_tracking[[i]])
+  dev.off()
+}
+

@@ -63,14 +63,15 @@ plot_csc_masses <- function(background, sand_df, area_txt,
                     "T13"=c(0.15, 0.8),
                     "T29"=c(0.15, 0.2))
     p1 <- background +
+      geom_label(data=catches, mapping=aes(x=x, y=y, label=csc)) +
       geom_point(data=catches, mapping=aes(x=x, y=y, color=sand.mass, 
                                            shape="CSC Site")) +
 coord_fixed() +
 ggtitle(plot.title) +
-stat_contour(data=df2, binwidth=mass.range/5,
+stat_contour(data=df2, binwidth=mass.range/9,
              mapping=aes(x=x, y=y, z=sand.mass, 
                          color=..level..)) +
-scale_colour_gradientn("Sand Mass (g)", limits=range(sand_df$sand.mass),  
+scale_colour_gradientn("Sand Mass (g)", limits=c(0, 200),  
                        colours=c("darkgreen", "yellow", "red"))+
 labs(shape=NULL) +
 theme(axis.ticks.x=element_blank(),

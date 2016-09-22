@@ -17,6 +17,27 @@ monthly_mass <- flux_df %>% group_by(csc, month, year, period, area, treatment, 
   summarize(sand.mass=round(sum(sand_flux)*geom_adj, 1)) %>%
   arrange(year, month) %>% ungroup()
 
+# filter out CSC sites which experienced sand intrusion from control plot
+filtered_mass <- monthly_mass %>%
+  filter(!(dca=='T26' & period=='1115' & csc %in% c('1540', '1538', '1537', 
+                                                    '1536', '1535', '1534',
+                                                    '1533', '1532', '1531',
+                                                    '1524', '1530', '1522', 
+                                                    '1521', '1520', '1510'))) %>%
+  filter(!(dca=='T26' & period=='1215' & csc %in% c('1540', '1538', '1537', 
+                                                    '1535', '1534', '1533',
+                                                    '1532', '1531', '1530'))) %>%
+  filter(!(dca=='T26' & period=='0216' & csc %in% c('1538', '1534', '1532', 
+                                                    '1531', '1530', '1524',
+                                                    '1522', '1521', '1520'))) %>%
+  filter(!(dca=='T26' & period=='0316' & csc %in% c('1535', '1522', '1521', 
+                                                    '1520'))) %>%
+  filter(!(dca=='T26' & period=='0416' & csc %in% c('1521', '1522', '1523', 
+                                                    '1513', '1520', '1511', 
+                                                    '1512'))) %>%
+  filter(!(dca=='T26' & period=='0516' & csc %in% c('1530', '1524', '1523', 
+                                                    '1522', '1521')))
+
 dust_season <- c("0415", "0515", "0615", "1115", "1215", "0116", "0216", 
                  "0316", "0416", "0516", "0616")
 mass_summary <- vector(mode="list", length=length(dust_season))
@@ -24,7 +45,7 @@ names(mass_summary) <- dust_season
 for (i in names(mass_summary)){
   calc_wetness <- ce_wetness[[i]]
   calc_wetness$dryness <- 1 - calc_wetness[ , 3]
-  mass_summary[[i]] <- monthly_mass %>%
+  mass_summary[[i]] <- filtered_mass %>%
     filter(period==i) %>%
     summarize_sandmass(., wetness=calc_wetness, period=i)
   mass_summary[[i]]$period <- i
@@ -98,24 +119,11 @@ for (i in areas){
   }
 }
 
-## find best fit curve y = a - (b/(x - d)^g)
-#coefficients <- data.frame(a=c(), b=c(), d=c(), g=c(), rms=c())
-#for (a in seq(100, 103, 0.1)){
-#  print(a)
-#  for(b in seq(8000, 12000, 500)){
-#    print(b)
-#    for (d in seq(2, 8, 0.1)){
-#      for (g in seq(1.5, 3, 0.1)){
-#        err <- apply(swir_ce[!is.na(swir_ce$swir) & swir_ce$swir>20 & 
-#                     !is.na(swir_ce$ce), 
-#                     c('swir', 'ce')], 1, 
-#                     function(x) x[2] - a - b/((x[1] - d)^g))
-#        rms <- sqrt(mean(err^2))
-#        coefficients <- rbind(coefficients, 
-#                              data.frame(a=a, b=b, d=d, g=g, rms=rms))
-#      }
-#    }
-#  }
-#}
+for (i in names(contour_plots$T26)[8:15]){
+  png(filename=paste0("~/Desktop/T26 contours/", i, ".png"), 
+      width=6, height=6, units="in", res=300)
+  print(contour_plots$T26[[i]])
+  dev.off()
+}
 
         

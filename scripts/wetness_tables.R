@@ -72,6 +72,14 @@ write.csv(tran_tbl,
           file="~/dropbox/owens/sfwcrft/code_output/transect_table.csv", 
           row.names=F)
 
+library(gridExtra)
+g_legend<-function(a.gplot){
+  tmp <- ggplot_gtable(ggplot_build(a.gplot))
+  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+  legend <- tmp$grobs[[leg]]
+  legend
+}
+
 swir_plot_df <- swir_tbl
 names(swir_plot_df) <- c("dca", "trgtwet", "04/16/2015", "06/08/2015", 
                          "06/20/2015", "11/30/2015", "12/01/2015",
@@ -82,30 +90,63 @@ swir_plot_melt$variable <- ordered(swir_plot_melt$variable,
                                             "06/20/2015", "11/30/2015", 
                                             "12/01/2015", "04/26/2016",
                                             "05/27/2016", "06/24/2016"))
+swir_plot_melt[swir_plot_melt$dca=='T26' & 
+               swir_plot_melt$variable=='04/16/2015', ]$value <- NA
 swir_plot_melt$trgtwet <- as.numeric(gsub("%", "", swir_plot_melt$trgtwet)) 
 swir_plot_melt$value <- as.numeric(gsub("%", "", swir_plot_melt$value)) 
 swir_tracking <- vector(mode="list", length=4)
 names(swir_tracking) <- c("T10-1b", "T26", "T13-1", "T29-2")
 for (i in names(swir_tracking)){
-  clrs <- c('#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00')
-  ab_ints <- unique(filter(swir_plot_melt, dca==i)$trgtwet)
-  n <- length(ab_ints)
-  swir_tracking[[i]] <- swir_plot_melt %>% filter(dca==i) %>%
-    ggplot(aes(x=variable, y=value, group=factor(trgtwet))) +
-    geom_path(aes(color=factor(trgtwet))) +
-    scale_color_manual(name="Target\nWetness (%)", values=clrs[1:n]) +
-    scale_y_continuous(name="SWIR Estimated Wetness (%)", 
-                       breaks=c(0, 10, 20, 30, 40, 45, 50, 55, 60, 65, 70, 75, 
-                                80, 90, 100), 
-                       minor_breaks=NULL, limits=c(0, 100)) +
-    geom_abline(slope=0, intercept=ab_ints, linetype="dashed", 
-                color=clrs[1:n]) +
-    xlab("SWIR Date") + 
-    theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1)) +
-    ggtitle(i)
-#  png(filename=paste0("~/dropbox/owens/sfwcrft/code_output/", i, "_swir.png"), 
-#      height=6, width=9, units="in", res=300)
-#  print(swir_tracking[[i]])
-#  dev.off()
+  dca_df <- swir_plot_melt %>% filter(dca==i)
+  swir_tracking[[i]] <- vector(mode="list", 
+                             length=length(unique(dca_df$trgtwet)))
+  names(swir_tracking[[i]]) <- unique(dca_df$trgtwet)
+  for (j in unique(dca_df$trgtwet)){
+    plot_df <- dca_df %>% filter(trgtwet==j)
+    ref_lines <- data.frame(type=c("Target Wetness", "Average SWIR Wetness"), 
+                            intercept=c(j, mean(plot_df$value, na.rm=T)),
+                            slope=c(0, 0), x=swir_plot_melt$variable[1])
+    avg_wet <- mean(plot_df$value)
+    swir_tracking[[i]][[as.character(j)]] <- plot_df %>% 
+      ggplot(aes(x=variable, y=value)) +
+      geom_abline(mapping=aes(intercept=intercept, linetype=type, slope=slope), 
+                  data=ref_lines, color="red") + 
+      geom_path(aes(group=dca, color="SWIR Image Result")) +
+      theme(axis.text.x=element_blank(), 
+            axis.text.y=element_blank(),
+            axis.title.x=element_blank(), 
+            axis.title.y=element_blank(), 
+            axis.ticks.x=element_blank(), 
+            axis.ticks.y=element_blank(), 
+            plot.title=element_text(size=8), 
+            legend.position="none", 
+            legend.title=element_blank()) + 
+      scale_color_manual(name="", values=c("blue")) + 
+      scale_y_continuous(breaks=seq(0, 100, 10), limits=c(0, 100)) + 
+      ggtitle(paste0(i, " ", j, "%"))
+  }
 }
 
+#lgnd <- g_legend(swir_tracking[[1]][[1]])
+#print(grid.arrange(lgnd))
+#leg.file <- tempfile()
+#save(lgnd, file=leg.file)
+
+png(filename="~/dropbox/owens/sfwcrft/code_output/swir_panel.png", 
+    height=6, width=10, units="in", res=300)
+grid.arrange(swir_tracking[[1]][[1]], 
+             swir_tracking[[1]][[2]], 
+             swir_tracking[[1]][[3]], 
+             swir_tracking[[1]][[4]], 
+             swir_tracking[[1]][[5]], 
+             swir_tracking[[2]][[1]], 
+             swir_tracking[[2]][[2]], 
+             swir_tracking[[2]][[3]], 
+             swir_tracking[[2]][[4]], 
+             swir_tracking[[2]][[5]], 
+             swir_tracking[[3]][[1]], 
+             swir_tracking[[3]][[2]], 
+             swir_tracking[[4]][[1]], 
+             swir_tracking[[4]][[2]], 
+             lgnd, nrow=3)
+dev.off()

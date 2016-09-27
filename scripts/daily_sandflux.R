@@ -15,8 +15,7 @@ flux_df <- pull_5min_flux(start.date, end.date, descrip)
 daily_flux <- flux_df %>% 
   mutate(day = as.Date(ymd(substring(datetime, 1, 10)))) %>%
   group_by(csc, day, period, treatment, dca) %>%  
-  summarize(sand.flux=round(sum(sand_flux), 2),
-            avg.ws=mean(windspeed_10m), avg.wd=mean(winddirection_10m)) %>%
+  summarize(sand.flux=round(sum(sand_flux), 2)) %>%
   ungroup()
 tmp <- daily_flux %>% select(csc, treatment, dca)
 tmp <- tmp[!duplicated(tmp$csc), ]
@@ -33,6 +32,7 @@ full_daily[is.na(full_daily$sand.flux), "sand.flux"] <- 0
 daily_flux <- full_daily
 daily_flux <- filter(daily_flux, !(period %in% c("0715", "0815", "0915", 
                                                  "1015")))
+
 # filter out CSC sites which experienced sand intrusion from control plot,   
 intrusion_list <- vector(mode="list", length=0)
 intrusion_list[['1115']] <- c('1540', '1538', '1537', '1536', '1535', '1534',
@@ -144,16 +144,5 @@ write.csv(daily_ce_tbl,
           file="~/dropbox/owens/sfwcrft/code_output/daily_ce_table.csv", 
           row.names=F)
 
-report_flux <- daily_ce %>% 
-  select(-avg.flux, -wetness, -dryness, -control.flux, -control.dry)
-report_flux$trgtwet <- paste0("t_", report_flux$trgtwet)
-a <- select(daily_ce, dca, day, control.flux)
-a <- a[!duplicated(a), ]
-a$control.flux <- a$control.flux * geom_adj
-names(a)[3] <- "control.mass"
-report_cast <- dcast(report_flux, dca + day ~ trgtwet) %>% 
-  left_join(a, by=c("dca", "day")) %>%
-  select(dca, day, control.mass, t_45, t_55, t_65, t_75)
-save(report_cast, file="./data/flux.RData")
 
                                    

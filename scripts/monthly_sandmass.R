@@ -1,3 +1,4 @@
+rm(list=ls())
 load_all()
 load_all("~/code/owensData")
 load_all("~/code/owensMaps")
@@ -48,12 +49,15 @@ filtered_mass$period <- ordered(filtered_mass$period,
                                 levels=c('0415', '0515', '0615', '1115', 
                                          '1215', '0116', '0216', '0316', 
                                          '0416', '0516', '0616'))
+
+# create table of monthly sand mass by CSC site
 site_mass <- filtered_mass %>%
   dcast(csc + dca + treatment ~ period, value.var='sand.mass')
 write.csv(site_mass, 
           file="~/dropbox/owens/sfwcrft/code_output/site_mass.csv", 
           row.names=F)
 
+# create table of area-average monthly sand mass by area & treatment
 avg_mass <- filtered_mass %>% group_by(dca, treatment, period) %>%
   summarize(avg.mass = round(mean(sand.mass), 2)) %>%
   dcast(dca + treatment ~ period)
@@ -61,6 +65,7 @@ write.csv(avg_mass,
           file="~/dropbox/owens/sfwcrft/code_output/avg_mass.csv", 
           row.names=F)
 
+# calculate control efficiencies
 prds <- unique(filtered_mass$period)
 for (i in 1:length(prds)){
   prd <- prds[i]
@@ -73,11 +78,14 @@ for (i in 1:length(prds)){
          ce_summary <- tmp_summary)
 }
 
+# filter data, only consider months with minimum level of sand motion
 cutoff <- 10 # minimum 0% area monthly sand mass for inclusion in results
 for (i in 1:nrow(ce_summary)){
   ce_summary$control.eff[i] <- ifelse(ce_summary$control.mass[i] < cutoff, 
                                       NA, ce_summary$control.eff[i])
 }
+
+# create table of monthly sand mass reduction control efficiencies
 mass_ce_tbl <- ce_summary %>% 
   select(dca, trgtwet, period, control.eff) %>%
   dcast(dca + trgtwet ~ period)
@@ -85,16 +93,15 @@ write.csv(mass_ce_tbl,
           file="~/dropbox/owens/sfwcrft/code_output/mass_ce_tbl.csv", 
           row.names=F)
 
+# plot monthly mass CE vs. wetness cover
 mass_ce_melt <- melt(mass_ce_tbl, id.vars=c("dca", "trgtwet"), 
                      variable.name="period", value.name="ce")
 cm_summ <- ce_summary %>% select(dca, trgtwet, period, control.mass) %>%
   filter(control.mass > cutoff)
-
 plot_df <- wet_record %>%
   left_join(mass_ce_melt, by=c("dca", "trgtwet", "period")) %>%
   left_join(cm_summ, by=c("dca", "trgtwet", "period"))
 plot_df$wet <- plot_df$wet * 100
-
 wet_mass_plot <- plot_df %>% filter(ce>0) %>%
   ggplot(aes(x=wet, y=ce)) +
   geom_point(aes(size=control.mass, color=dca)) +
@@ -119,13 +126,6 @@ for (i in areas){
   for (j in unique(monthly_mass$period)){
     contour_plots[[i]][[j]] <- plot_csc_masses(p1, join_mass, i, j)
   }
-}
-
-for (i in names(contour_plots$T26)[8:15]){
-  png(filename=paste0("~/Desktop/T26 contours/", i, ".png"), 
-      width=6, height=6, units="in", res=300)
-  print(contour_plots$T26[[i]])
-  dev.off()
 }
 
         

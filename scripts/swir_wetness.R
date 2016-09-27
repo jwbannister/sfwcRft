@@ -1,3 +1,4 @@
+rm(list=ls())
 load_all()
 load_all("~/code/owensData")
 library(rgdal)
@@ -8,13 +9,13 @@ library(reshape2)
 rasterOptions(tolerance = 1)
 
 # read in SFWCRFT area shapefile
-sfwct_areas <- readOGR(path.expand("~/code/sfwcRft/data/DCM_SFWCT_2015_Bndys_070815"), 
+sfwct_areas <- readOGR(path.expand("~/dropbox/gis/owens/SFWCT/DCM_SFWCT_2015_Bndys_070815"), 
                "DCM_SFWCT_2015_Bndys_070815")
 sfwct_areas@data$index <- as.integer(paste0(substr(sfwct_areas@data$DCM, 2, 3), 
                                  as.character(sfwct_areas@data$TrgtWet)))
 
 # build trimmed rasters in shape of areas for trimming SWIR images. 
-ras_uniform <- raster("~/dropbox/data/swir/Formation_noadj/113015_form_noadj.tif")
+ras_uniform <- raster("~/dropbox/data/swir/LS_adjusted/042616_LSadj.tif")
 ras_uniform[ , ] <- 1
 # sfwct_ras <- ras_clip(ras_uniform, sfwct_areas)
 sfwct_trgtwet_ras <- ras_clip(ras_uniform, sfwct_areas, fld="index")
@@ -26,7 +27,7 @@ date_index <- c("041615", "060815", "062015", "113015", "120115",
                 "042616", "052716", "062416")
 
 # get list of file names for SWIR images
-a <- list.files(path="~/dropbox/data/swir/Formation_noadj/", 
+a <- list.files(path="~/dropbox/data/swir/LS_adjusted/", 
                 pattern=".tif")
 
 wetness <- vector(mode="list", length=length(date_index))
@@ -34,7 +35,7 @@ names(wetness) <- date_index
 for (k in date_index){
   print(k)
   fn <- a[substr(a, 1, 6)==k][1]
-  ras_swir <- raster(paste0("~/dropbox/data/swir/Formation_noadj/", fn))
+  ras_swir <- raster(paste0("~/dropbox/data/swir/LS_adjusted/", fn))
 #  ras_uniform <- ras_swir
 #  ras_uniform[ , ] <- 1
   zones <- vector(mode="list", length=length(sfwct_areas@data$index))
@@ -59,15 +60,11 @@ for (k in date_index){
   }
 }
 
+# tag early June swir flight to May wetness estimate (late June flight will be 
+# used for June estimate
 names(wetness)[names(wetness)=='060815'] <- '05xx15'
 names(wetness) <- paste0(substr(names(wetness), 1, 2), 
-                                 substring(names(wetness), 5))
-
-# define months in dust season for which wetness is required for CE calculations
-month_index <- c("0415", "0515", "0615", "1115", "1215", "0116",
-                 "0216", "0316", "0416", "0516", "0616")
-ce_wetness <- vector(mode="list", length=length(month_index))
-names(ce_wetness) <- month_index
+                         substr(names(wetness), 5, 6))   
 
 swir_wet_tbl <- data.frame(dca=wetness[[1]]$dca, 
                           trgtwet=wetness[[1]]$trgtwet)
@@ -100,9 +97,9 @@ tran_record$period <- paste0(substr(tran_record$day, 6, 7),
 tran_record[tran_record$period=='0615', ]$period <- '0515'
 trans_sub <- filter(tran_record, !(period %in% names(wetness)))
 # apply January 28 transect wetness to both Jan 2016 and Feb 2016 period
-tmp <- trans_sub %>% filter(period=='0116') %>% select(-period) %>%
+tmp <- trans_sub %>% filter(period=='0116') %>% dplyr::select(-period) %>%
   mutate(period='0216')
-trans_sub <- rbind(trans_sub, tmp) %>% select(-day) %>%
+trans_sub <- rbind(trans_sub, tmp) %>% dplyr::select(-day) %>%
   arrange(period, dca, trgtwet)
 trans_sub$period <- paste0("tran.", trans_sub$period)
 
@@ -110,7 +107,7 @@ wet_record <- melt(swir_wet_tbl, id.vars=c("dca", "trgtwet"),
                    variable.name="period", value.name="wet") %>%
               rbind(trans_sub) %>% rename(index=period) %>%
               mutate(method=substr(index, 1, 4), period=substr(index, 6, 9)) %>%
-              select(-index)
+              dplyr::select(-index)
 wet_record$trgtwet <- as.integer(wet_record$trgtwet)
 wet_record$period <- ordered(wet_record$period, 
                              levels=c('0415', '0515', '0615', '1115', '1215',
@@ -119,7 +116,7 @@ wet_record$period <- ordered(wet_record$period,
 full_record <- expand.grid(period=unique(wet_record$period), 
                            dca=unique(wet_record$dca), 
                            trgtwet=unique(wet_record$trgtwet)) %>%
-               filter(!(dca=='T13' & trgtwet!=75), 
+               filter(!(dca=='T13' & !(trgtwet %in% c(55, 75))), 
                       !(dca=='T29' & !(trgtwet %in% c(0, 45))))               
 wet_record <- left_join(full_record, wet_record, 
                         by=c("dca", "trgtwet", "period")) %>%
@@ -127,14 +124,3 @@ wet_record <- left_join(full_record, wet_record,
 wet_record <- wet_record[!(duplicated(wet_record)), ]
 
 save(wet_record, tran_record, file="./data/wetness.RData")
-
-
-
-
-
-
-
-
-  
-  
-

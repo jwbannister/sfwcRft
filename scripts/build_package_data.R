@@ -1,3 +1,4 @@
+rm(list=ls())
 library(dplyr)
 
 #' Get polygon data from shapefile
@@ -27,11 +28,11 @@ shape_data <- function(dsn, layer, proj_string){
 #' @param id_ind Integer. Column index of object id to be associated with all 
 #' elements of corresponding list.
 #' @return Data frame.
-lists2df <- function(df_in, list_ind, id_ind){
+lists2df <- function(list_in){
   df_out <- data.frame(x=numeric(), y=numeric(), objectid=integer())
-  for (i in 1:nrow(df_in)){
-    df1 <- data.frame(matrix(df_in[, list_ind][[i]], ncol=2))
-    df1$objectid <- rep(df_in[i, id_ind], nrow(df1))
+  for (i in 1:length(list_in)){
+    df1 <- data.frame(matrix(list_in[[i]], ncol=2))
+    df1$objectid <- rep(i, nrow(df1))
     colnames(df1)[1:2] <- c("x", "y")
     df_out <- rbind(df_out, df1)
   }
@@ -40,11 +41,11 @@ lists2df <- function(df_in, list_ind, id_ind){
 
 proj_string <- paste0("+proj=utm +zone=11 +datum=NAD83 +units=m +no_defs", 
                       "+ellps=GRS80 +towgs84=0,0,0")
-shp_dsn <- "~/code/sfwcRft/data/DCM_SFWCT_2015_Bndys_070815"
+shp_dsn <- "~/dropbox/gis/owens/SFWCT/DCM_SFWCT_2015_Bndys_070815"
 shp_layer <- "DCM_SFWCT_2015_Bndys_070815"
 sfwct_dcm_data <- shape_data(shp_dsn, shp_layer, proj_string)
-sfwct_polys <- lists2df(sfwct_dcm_data, 11, 5)
-sfwct_labels <- lists2df(sfwct_dcm_data, 10, 5)
+sfwct_polys <- lists2df(sfwct_dcm_data$polypnts)
+sfwct_labels <- lists2df(sfwct_dcm_data$labpnts)
 sfwct_labels <- inner_join(sfwct_labels,
                        select(sfwct_dcm_data, objectid, dcm, treatment), 
                        by="objectid")

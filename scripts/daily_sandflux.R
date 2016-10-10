@@ -64,7 +64,7 @@ daily_mass$greater1 <- ifelse(daily_mass$sand.mass>cutoff, TRUE, FALSE)
 qualified_days <- daily_mass %>% filter(treatment=="0%") %>%
   select(-sand.mass, -treatment) 
 
-flux_summary <- summarize_flux_sfwct(daily_flux, wet_record) %>%
+flux_summary <- summarize_flux_sfwct(filtered_flux, wet_record) %>%
   left_join(qualified_days, by=c("dca", "day")) %>%
   rename(qualified = greater1, period=period.x)
 flux_summary$period <- ordered(flux_summary$period, 
@@ -85,7 +85,7 @@ daily_flux$period <- ordered(daily_flux$period,
                              levels=c('0415', '0515', '0615', '1115', '1215', 
                                       '0116', '0216', '0316', '0416', '0516', 
                                       '0616'))
-site_daily <- daily_flux %>% 
+site_daily <- filtered_flux %>% 
   select(csc, dca, treatment, period, sand.flux) %>%
   group_by(csc, dca, treatment, period) %>%
   summarize(avg.daily = round(mean(sand.flux), 2)) %>%
@@ -98,6 +98,16 @@ daily_ce_tbl <- flux_summary %>% filter(qualified) %>%
   select(dca, trgtwet, period, date=day, ce=control.eff) %>%
   dcast(dca + date ~ trgtwet) %>%
   arrange(dca, date) 
+
+# save flux data in format for use in dustReport package
+report_cast <- daily_ce_tbl %>% 
+  left_join(filter(daily_mass, treatment=="0%"), 
+            by=c("dca", "date"="day")) 
+names(report_cast)[3:7] <- paste0("t_", names(report_cast)[3:7])
+report_cast <- select(report_cast, dca, day=date, control.mass=sand.mass, 
+                      t_45, t_55, t_65, t_75)
+daily_flux1 <- daily_flux %>% select(csc, day, dca, treatment, sand.flux)
+save(report_cast, daily_flux1, file="~/code/sfwcRft/data/flux.RData")
   
 daily_ce_melt <- melt(daily_ce_tbl, id.vars=c("dca", "date"), 
                      variable.name="trgtwet", value.name="ce")
@@ -110,6 +120,12 @@ cm_summ <- flux_summary %>% filter(qualified) %>%
 
 avg_daily_ce <- daily_ce_melt %>% group_by(dca, trgtwet, period) %>%
   summarize(avg.ce = round(mean(ce), 0))
+avg_daily_ce$period <- ordered(avg_daily_ce$period, 
+                               levels=c("0415", "0515", "0615", "1115", 
+                                        "1215", "0116", "0216", "0316", 
+                                        "0416", "0516", "0616"))
+avg_daily_ce <- arrange(avg_daily_ce, dca, period, trgtwet)
+avg_daily_ce <- dcast(avg_daily_ce, dca + trgtwet ~ period)
 write.csv(avg_daily_ce, 
           file="~/dropbox/owens/sfwcrft/code_output/avg_daily_ce.csv",
           row.names=FALSE) 
@@ -126,9 +142,9 @@ wet_flux_plot <- plot_df %>% filter(ce>0) %>%
   scale_colour_manual(name="DCA", values=c("red", "blue", "green", "orange")) +
   scale_size_continuous(name="0% Area Mass") +
   scale_y_continuous(name="Control Efficiency (%)", 
-                     breaks=seq(0, 100, 10)) +
+                     breaks=seq(0, 100, 10), limits=c(0, 100)) +
   scale_x_continuous(name="Wetness Cover (%)", 
-                     breaks=seq(0, 80, 10)) 
+                     breaks=seq(0, 100, 10), limits=c(0, 100)) 
 png(filename="~/dropbox/owens/sfwcrft/code_output/wet_flux_ce_plot.png", 
     width=8, height=6, units="in", res=300)
 print(wet_flux_plot)
@@ -138,11 +154,12 @@ daily_ce_tbl$dca <- ordered(daily_ce_tbl$dca,
                             levels=c("T10", "T26", "T29", "T13"), 
                             labels=c("T10-1b", "T26", "T29-2", "T13-1"))
 daily_ce_tbl$date <- format(daily_ce_tbl$date, "%m-%d-%y")
-names(daily_ce_tbl) <- c("DCA", "Date", "Target 45%", "Target 55%", 
+names(daily_ce_tbl) <- c("DCA", "Date", "Target 0%", "Target 45%", "Target 55%", 
                          "Target 65%", "Target 75%")
 write.csv(daily_ce_tbl, 
           file="~/dropbox/owens/sfwcrft/code_output/daily_ce_table.csv", 
           row.names=F)
+
 
 
                                    

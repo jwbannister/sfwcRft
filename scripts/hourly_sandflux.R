@@ -64,7 +64,7 @@ daily_mass$greater1 <- ifelse(daily_mass$avg.daily>1, TRUE, FALSE)
 qualified_days <- daily_mass %>% filter(treatment=="0%") %>%
   select(-avg.daily, -treatment) 
 
-flux_summary <- summarize_flux_hourly(hourly_flux, wet_record)
+flux_summary <- summarize_flux_hourly(filtered_flux, wet_record)
 hourly_ce <- flux_summary %>% select(-period.x, -period.y) %>%
   left_join(qualified_days, by=c("dca", "date")) %>%
   filter(greater1) %>% select(-greater1, -method.x, -method.y, -wet)
@@ -81,6 +81,7 @@ hourly_ce_tbl <- spread(hourly_ce_tbl, trgtwet, control.eff) %>%
 write.csv(hourly_ce_tbl, 
           file="~/dropbox/owens/sfwcrft/code_output/hourly_ce_tbl.csv", 
           row.names=FALSE)
+
 hourly_flux_tbl <- filtered_flux %>% arrange(desc(sand.flux)) %>%
   mutate(ws=round(avg.ws, 1), wd=round(avg.wd, 0), flux=round(sand.flux, 2)) %>%
   select(csc, date, hour, dca, treatment, ws, wd, flux)

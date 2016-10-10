@@ -128,4 +128,16 @@ for (i in areas){
   }
 }
 
-        
+# output data file for loading when producing monthly reports in dustReport 
+# package
+report_mass <- filtered_mass %>% group_by(dca, treatment, period) %>%
+  summarize(avg.mass = round(mean(sand.mass), 2)) %>% ungroup() %>%
+  mutate(trgtwet=as.integer(gsub("%", "", treatment))) %>%
+  select(-treatment) %>%
+  left_join(mass_ce_melt, by=c("dca", "trgtwet", "period")) %>%
+  mutate(treatment=paste0(trgtwet, "%")) %>% 
+  select(dca, treatment, period, avg.mass, ce)
+csc_mass1 <- monthly_mass %>% 
+    select(csc, month, year, dca, treatment, sand.mass)
+save(report_mass, csc_mass1, file="~/code/sfwcRft/data/mass.RData")
+

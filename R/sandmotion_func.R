@@ -66,7 +66,7 @@ summarize_flux_sfwct <- function(df_in, wet_df){
     mutate(control.eff=1-((avg.flux*dryness)/(control.flux*control.dry)))
   treat_sum$control.eff <- round(treat_sum$control.eff, 2) * 100
   treat_sum[treat_sum$trgtwet==0, ]$control.eff <- NA
-  treat_sum <- filter(treat_sum, trgtwet!=0) %>% 
+  treat_sum <- treat_sum %>% 
     arrange(dca, day, trgtwet)
   treat_sum
 }

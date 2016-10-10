@@ -1,0 +1,880 @@
+[33mcommit ce12bd1cb4690aa41aff4b5184e13da116c99355[m
+Author: John Bannister <jbannister@airsci.com>
+Date:   Thu Sep 22 16:01:27 2016 -0700
+
+     continued alternations to scripts to generate data for report
+
+[1mdiff --git a/R/.plot_func.R.swp b/R/.plot_func.R.swp[m
+[1mdeleted file mode 100644[m
+[1mindex 7246744..0000000[m
+Binary files a/R/.plot_func.R.swp and /dev/null differ
+[1mdiff --git a/R/sandmotion_func.R b/R/sandmotion_func.R[m
+[1mindex bc64de5..ad6d35c 100644[m
+[1m--- a/R/sandmotion_func.R[m
+[1m+++ b/R/sandmotion_func.R[m
+[36m@@ -52,20 +52,21 @@[m [mclean_flux_sfwct <- function(df_in){[m
+ }[m
+ [m
+ summarize_flux_sfwct <- function(df_in, wet_df){[m
+[31m-  df_in$trgtwet <- gsub("%", "", df_in$treatment)[m
+[32m+[m[32m  wet_df$dryness <- 1 - wet_df$wet[m
+[32m+[m[32m  df_in$trgtwet <- as.integer(gsub("%", "", df_in$treatment))[m
+   treat_sum <- df_in %>% group_by(dca, trgtwet, day, period) %>% [m
+     summarize(avg.flux=mean(sand.flux)) %>% ungroup() [m
+   treat_sum <- left_join(treat_sum, wet_df, [m
+                          by=c("dca", "trgtwet", "period"))[m
+[31m-  control_sum <- filter(treat_sum, trgtwet=="0") %>% [m
+[31m-    select(-trgtwet, -wetness) %>% rename(control.flux=avg.flux, [m
+[32m+[m[32m  control_sum <- filter(treat_sum, trgtwet==0) %>%[m[41m [m
+[32m+[m[32m    select(-trgtwet, -wet) %>% rename(control.flux=avg.flux,[m[41m [m
+                                           control.dry=dryness)[m
+   control_sum <- control_sum[!duplicated(control_sum), ][m
+[31m-  treat_sum <- inner_join(treat_sum, control_sum, by=c("dca", "day")) %>%[m
+[32m+[m[32m  treat_sum <- left_join(treat_sum, control_sum, by=c("dca", "day")) %>%[m
+     mutate(control.eff=1-((avg.flux*dryness)/(control.flux*control.dry)))[m
+   treat_sum$control.eff <- round(treat_sum$control.eff, 2) * 100[m
+[31m-  treat_sum[treat_sum$trgtwet=="0", ]$control.eff <- NA[m
+[31m-  treat_sum <- filter(treat_sum, trgtwet!="0") %>% [m
+[32m+[m[32m  treat_sum[treat_sum$trgtwet==0, ]$control.eff <- NA[m
+[32m+[m[32m  treat_sum <- filter(treat_sum, trgtwet!=0) %>%[m[41m [m
+     arrange(dca, day, trgtwet)[m
+   treat_sum[m
+ }[m
+[36m@@ -132,7 +133,7 @@[m [mrank_flux_cells <- function(df_in){[m
+ #' @param df_in Data frame of sand mass data.[m
+ #' @return Data frame of sumamrized results.[m
+ summarize_sandmass <- function(df_in, wetness, period){[m
+[31m-  df_in$trgtwet <- gsub("%", "", df_in$treatment)[m
+[32m+[m[32m  df_in$trgtwet <- as.integer(gsub("%", "", df_in$treatment))[m
+   treat_sum <- df_in %>% group_by(dca, trgtwet) %>% [m
+     summarize(avg.sand.mass=mean(sand.mass)) %>% ungroup() %>%[m
+     left_join(select(wetness, dca, trgtwet, dryness), by=c("dca", "trgtwet"))[m
+[1mdiff --git a/data/dri_wetness.RData b/data/dri_wetness.RData[m
+[1mdeleted file mode 100644[m
+[1mindex fc4a783..0000000[m
+Binary files a/data/dri_wetness.RData and /dev/null differ
+[1mdiff --git a/data/temp_daily_flux_save.RData b/data/temp_daily_flux_save.RData[m
+[1mdeleted file mode 100644[m
+[1mindex 919034c..0000000[m
+Binary files a/data/temp_daily_flux_save.RData and /dev/null differ
+[1mdiff --git a/data/wetness.RData b/data/wetness.RData[m
+[1mindex e65a19a..3b874df 100644[m
+Binary files a/data/wetness.RData and b/data/wetness.RData differ
+[1mdiff --git a/report/.sandflux_tables.R.swp b/report/.sandflux_tables.R.swp[m
+[1mnew file mode 100644[m
+[1mindex 0000000..f4fcfe8[m
+Binary files /dev/null and b/report/.sandflux_tables.R.swp differ
+[1mdiff --git a/report/sandflux_tables.R b/report/sandflux_tables.R[m
+[1mindex 6b0162a..828f0cd 100644[m
+[1m--- a/report/sandflux_tables.R[m
+[1m+++ b/report/sandflux_tables.R[m
+[36m@@ -33,120 +33,117 @@[m [mfull_daily[is.na(full_daily$sand.flux), "sand.flux"] <- 0[m
+ daily_flux <- full_daily[m
+ daily_flux <- filter(daily_flux, !(period %in% c("0715", "0815", "0915", [m
+                                                  "1015")))[m
+[32m+[m[32m# filter out CSC sites which experienced sand intrusion from control plot,[m[41m   [m
+[32m+[m[32mintrusion_list <- vector(mode="list", length=0)[m
+[32m+[m[32mintrusion_list[['1115']] <- c('1540', '1538', '1537', '1536', '1535', '1534',[m
+[32m+[m[32m                           '1533', '1532', '1531','1524', '1530', '1522',[m
+[32m+[m[32m                           '1521', '1520', '1510')[m
+[32m+[m[32mintrusion_list[['1215']] <- c('1540', '1538', '1537', '1535', '1534', '1533',[m
+[32m+[m[32m                           '1532', '1531', '1530')[m
+[32m+[m[32mintrusion_list[['0216']] <- c('1538', '1534', '1532', '1531', '1530', '1524',[m
+[32m+[m[32m                           '1522', '1521', '1520')[m
+[32m+[m[32mintrusion_list[['0316']] <- c('1535', '1522', '1521', '1520')[m
+[32m+[m[32mintrusion_list[['0416']] <- c('1521', '1522', '1523', '1513', '1520', '1511',[m
+[32m+[m[32m                           '1512')[m
+[32m+[m[32mintrusion_list[['0516']] <- c('1530', '1524', '1523', '1522', '1521')[m
+[32m+[m[41m                                                    [m
+[32m+[m[32mfiltered_flux <- daily_flux %>%[m
+[32m+[m[32m  filter(!(dca=='T26' & period=='1115' & csc %in% intrusion_list[['1115']])) %>%[m
+[32m+[m[32m  filter(!(dca=='T26' & period=='1215' & csc %in% intrusion_list[['1215']])) %>%[m
+[32m+[m[32m  filter(!(dca=='T26' & period=='0216' & csc %in% intrusion_list[['0216']])) %>%[m
+[32m+[m[32m  filter(!(dca=='T26' & period=='0316' & csc %in% intrusion_list[['0316']])) %>%[m
+[32m+[m[32m  filter(!(dca=='T26' & period=='0416' & csc %in% intrusion_list[['0416']])) %>%[m
+[32m+[m[32m  filter(!(dca=='T26' & period=='0516' & csc %in% intrusion_list[['0516']]))[m[41m [m
+ [m
+ geom_adj <- 1.2 #sandcatch geometry adjustment for sandflux calculation[m
+[31m-daily_mass <- daily_flux %>% group_by(day, treatment, dca) %>% [m
+[32m+[m[32mcutoff <- 1[m
+[32m+[m[32mdaily_mass <- filtered_flux %>% group_by(day, treatment, dca) %>%[m[41m [m
+   summarize(sand.mass=round(mean(sand.flux*geom_adj), 1)) %>%[m
+   arrange(day) %>% ungroup()[m
+[31m-daily_mass$greater1 <- ifelse(daily_mass$sand.mass>1, TRUE, FALSE)[m
+[32m+[m[32mdaily_mass$greater1 <- ifelse(daily_mass$sand.mass>cutoff, TRUE, FALSE)[m
+ qualified_days <- daily_mass %>% filter(treatment=="0%") %>%[m
+   select(-sand.mass, -treatment) [m
+ [m
+[31m-ce_wet_df <- data.frame(dca=ce_wetness[[1]]$dca,[m
+[31m-                        trgtwet=ce_wetness[[1]]$trgtwet)[m
+[31m-for (i in names(ce_wetness)){[m
+[31m-  tmp <- ce_wetness[[i]][m
+[31m-  names(tmp)[3] <- i[m
+[31m-  ce_wet_df <- left_join(ce_wet_df, tmp, by=c("dca", "trgtwet"))[m
+[31m-}[m
+[31m-ce_wet_melt <- melt(ce_wet_df, id.vars=c("dca", "trgtwet"), [m
+[31m-                    variable.name="period", value.name="wetness")[m
+[31m-ce_wet_melt$dryness <- 1 - ce_wet_melt$wetness[m
+[31m-[m
+[31m-flux_summary <- summarize_flux_sfwct(daily_flux, ce_wet_melt)[m
+[32m+[m[32mflux_summary <- summarize_flux_sfwct(daily_flux, wet_record) %>%[m
+[32m+[m[32m  left_join(qualified_days, by=c("dca", "day")) %>%[m
+[32m+[m[32m  rename(qualified = greater1, period=period.x)[m
+[32m+[m[32mflux_summary$period <- ordered(flux_summary$period,[m[41m [m
+[32m+[m[32m                               levels=c('0415', '0515', '0615', '1115', '1215',[m[41m [m
+[32m+[m[32m                                        '0116', '0216', '0316', '0416', '0516',[m[41m [m
+[32m+[m[32m                                        '0616'))[m
+ [m
+[31m-avg_daily <- daily_flux %>%[m
+[31m-  select(csc, dca, treatment, period, sand.flux) %>%[m
+[31m-  group_by(dca, treatment, period) %>%[m
+[31m-  summarize(avg.daily = round(mean(sand.flux), 2))[m
+[31m-avg_daily$period <- paste0("p", avg_daily$period)[m
+[31m-daily_cast <- dcast(avg_daily, dca + treatment ~ period) %>%[m
+[31m-  select(dca, treatment, p0415, p0515, p0615, p1115, p1215, p0116, [m
+[31m-         p0216, p0316, p0416, p0516, p0616)[m
+[31m-names(daily_cast) <- c("DCA", "Target Wetness", "Apr 2015", "May 2015", [m
+[31m-                       "June 2015", "Nov 2015", "Dec 2015", "Jan 2016", [m
+[31m-                       "Feb 2016", "Mar 2016", "Apr 2016", "May 2016", [m
+[31m-                       "June 2016")[m
+[31m-write.csv(daily_cast, [m
+[31m-          file="~/dropbox/owens/sfwcrft/code_output/avg_daily.csv",[m
+[32m+[m[32mavg_daily <- flux_summary %>%[m[41m [m
+[32m+[m[32m  select(dca, trgtwet, period, avg.flux) %>%[m
+[32m+[m[32m  group_by(dca, trgtwet, period) %>%[m
+[32m+[m[32m  summarize(avg.daily = round(mean(avg.flux), 2)) %>%[m
+[32m+[m[32m  dcast(dca + trgtwet ~ period)[m[41m [m
+[32m+[m[32mwrite.csv(avg_daily,[m[41m [m
+[32m+[m[32m          file="~/dropbox/owens/sfwcrft/code_output/avg_daily_flux.csv",[m
+           row.names=FALSE) [m
+ [m
+[31m-site_daily <- daily_flux %>%[m
+[32m+[m[32mdaily_flux$period <- ordered(daily_flux$period,[m[41m [m
+[32m+[m[32m                             levels=c('0415', '0515', '0615', '1115', '1215',[m[41m [m
+[32m+[m[32m                                      '0116', '0216', '0316', '0416', '0516',[m[41m [m
+[32m+[m[32m                                      '0616'))[m
+[32m+[m[32msite_daily <- daily_flux %>%[m[41m [m
+   select(csc, dca, treatment, period, sand.flux) %>%[m
+   group_by(csc, dca, treatment, period) %>%[m
+[31m-  summarize(avg.daily = round(mean(sand.flux), 2))[m
+[31m-site_daily$period <- paste0("p", site_daily$period)[m
+[31m-site_cast <- dcast(site_daily, csc + dca + treatment ~ period) %>%[m
+[31m-  select(csc, dca, treatment, p0415, p0515, p0615, p1115, p1215, p0116, [m
+[31m-         p0216, p0316, p0416, p0516, p0616)[m
+[31m-names(site_cast) <- c("DCA", "Target Wetness", "Apr 2015", "May 2015", [m
+[31m-                       "June 2015", "Nov 2015", "Dec 2015", "Jan 2016", [m
+[31m-                       "Feb 2016", "Mar 2016", "Apr 2016", "May 2016", [m
+[31m-                       "June 2016")[m
+[31m-write.csv(site_cast, [m
+[31m-          file="~/dropbox/owens/sfwcrft/code_output/site_daily.csv",[m
+[32m+[m[32m  summarize(avg.daily = round(mean(sand.flux), 2)) %>%[m
+[32m+[m[32m  dcast(csc + dca + treatment ~ period)[m[41m [m
+[32m+[m[32mwrite.csv(site_daily,[m[41m [m
+[32m+[m[32m          file="~/dropbox/owens/sfwcrft/code_output/site_daily_flux.csv",[m
+           row.names=FALSE) [m
+[31m-                       [m
+ [m
+[32m+[m[32mdaily_ce_tbl <- flux_summary %>% filter(qualified) %>%[m
+[32m+[m[32m  select(dca, trgtwet, period, date=day, ce=control.eff) %>%[m
+[32m+[m[32m  dcast(dca + date ~ trgtwet) %>%[m
+[32m+[m[32m  arrange(dca, date)[m[41m [m
+[32m+[m[41m  [m
+[32m+[m[32mdaily_ce_melt <- melt(daily_ce_tbl, id.vars=c("dca", "date"),[m[41m [m
+[32m+[m[32m                     variable.name="trgtwet", value.name="ce")[m
+[32m+[m[32mdaily_ce_melt$period <- paste0(substr(daily_ce_melt$date, 6, 7),[m[41m [m
+[32m+[m[32m                               substr(daily_ce_melt$date, 3, 4))[m
+[32m+[m[32mdaily_ce_melt$trgtwet <- as.integer(as.character(daily_ce_melt$trgtwet))[m
+[32m+[m[32mcm_summ <- flux_summary %>% filter(qualified) %>%[m
+[32m+[m[32m  mutate(control.mass = control.flux * geom_adj) %>%[m
+[32m+[m[32m  select(dca, day, trgtwet, period, control.mass)[m[41m [m
+ [m
+[32m+[m[32mavg_daily_ce <- daily_ce_melt %>% group_by(dca, trgtwet, period) %>%[m
+[32m+[m[32m  summarize(avg.ce = round(mean(ce), 0))[m
+[32m+[m[32mwrite.csv(avg_daily_ce,[m[41m [m
+[32m+[m[32m          file="~/dropbox/owens/sfwcrft/code_output/avg_daily_ce.csv",[m
+[32m+[m[32m          row.names=FALSE)[m[41m [m
+ [m
+[32m+[m[32mplot_df <- daily_ce_melt %>%[m
+[32m+[m[32m  left_join(cm_summ, by=c("dca", "date"="day", "trgtwet", "period")) %>%[m
+[32m+[m[32m  left_join(wet_record, by=c("dca", "trgtwet", "period"))[m
+[32m+[m[32mplot_df$wet <- plot_df$wet * 100[m
+ [m
+[31m-daily_ce <- flux_summary %>% select(-period.x, -period.y) %>%[m
+[31m-  left_join(qualified_days, by=c("dca", "day")) %>%[m
+[31m-  filter(greater1) %>% select(-greater1)[m
+[31m-ce_table <- daily_ce %>% select(dca, trgtwet, date=day, ce=control.eff) %>%[m
+[31m-  reshape2::dcast(dca + date ~ trgtwet) %>%[m
+[31m-  arrange(date) %>% filter(!(date=='2015-06-26' & dca=='T26'))[m
+[31m-ce_table$dca <- ordered(ce_table$dca, levels=c("T10", "T26", "T29", "T13"), [m
+[31m-                        labels=c("T10-1b", "T26", "T29-2", "T13-1"))[m
+[31m-ce_table$date <- format(ce_table$date, "%m-%d-%y")[m
+[31m-for (i in 3:6){[m
+[31m-  ce_table[ , i] <- sapply(ce_table[ , i],[m
+[31m-                           function(x) ifelse(is.na(x), "NA", paste0(x, "%")))[m
+[31m-}[m
+[31m-names(ce_table) <- c("DCA", "Date", "Target 45%", "Target 55%", "Target 65%", [m
+[31m-                     "Target 75%")[m
+[31m-write.csv(ce_table, [m
+[31m-          file="~/dropbox/owens/sfwcrft/code_output/flux_ce_table.csv", [m
+[31m-          row.names=F)[m
+[31m-  [m
+[31m-tmp <- ce_table[m
+[31m-names(tmp) <- c("dca", "date", "t45", "t55", "t65", "t75")[m
+[31m-tmp <- tmp %>% [m
+[31m-  reshape2::melt(id.vars=c("dca", "date")) [m
+[31m-tmp$value <- as.numeric(gsub("%", "", tmp$value))[m
+[31m-mean_daily_tbl <- tmp %>%[m
+[31m-  group_by(dca, variable) %>%[m
+[31m-  summarize(mean.wet = round(mean(value), 0))[m
+[31m-mean_daily_tbl <- mean_daily_tbl[complete.cases(mean_daily_tbl), ][m
+[31m-mean_daily_tbl$mean.wet <- paste0(mean_daily_tbl$mean.wet, "%")[m
+[31m-mean_daily_tbl$variable <- paste0(gsub("t", "", mean_daily_tbl$variable), "%")[m
+[31m-names(mean_daily_tbl) <- c("DCA", "Target Wetness", "Average CE")[m
+[31m-write.csv(mean_daily_tbl, [m
+[31m-          file="~/dropbox/owens/sfwcrft/code_output/mean_daily_flux.csv", [m
+[31m-          row.names=FALSE)[m
+[31m-[m
+[31m-ce_curve <- data.frame(wetness=c(.72, .64, .28, 0), ce=c(99, 94, 59, 0))[m
+[31m-ce_plot_data <- daily_ce[m
+[31m-ce_plot_data$t26.filter <- ifelse((ce_plot_data$dca=='T26') & [m
+[31m-                              (ce_plot_data$day<'2016-03-15'), [m
+[31m-                            FALSE, TRUE)[m
+[31m-ce_plot_data$wetness <- ce_plot_data$wetness*100[m
+[31m-swir_flux_plot <- ce_plot_data %>% filter(control.eff>0, t26.filter) %>%[m
+[31m-  rename(ce=control.eff) %>%[m
+[31m-  ggplot(aes(x=wetness, y=ce)) +[m
+[31m-  geom_point(aes(color=dca, size=control.flux)) +[m
+[31m-  scale_colour_manual(name="DCA", [m
+[31m-                      values=c("red", "blue", "green", "orange")) +[m
+[31m-  scale_size_continuous(name="0% Area Flux") +[m
+[31m-  scale_y_continuous(name="Control Efficiency (%)", breaks=seq(0, 100, 10)) +[m
+[31m-  scale_x_continuous(name="SWIR Estimated Wetness Cover (%)", [m
+[32m+[m[32mwet_flux_plot <- plot_df %>% filter(ce>0) %>%[m
+[32m+[m[32m  ggplot(aes(x=wet, y=ce)) +[m
+[32m+[m[32m  geom_point(aes(size=control.mass, color=dca)) +[m
+[32m+[m[32m  ggtitle("Daily Sand Flux Control Efficiency - 2015/2016 Dust Season") +[m
+[32m+[m[32m  scale_colour_manual(name="DCA", values=c("red", "blue", "green", "orange")) +[m
+[32m+[m[32m  scale_size_continuous(name="0% Area Mass") +[m
+[32m+[m[32m  scale_y_continuous(name="Control Efficiency (%)",[m[41m [m
+[32m+[m[32m                     breaks=seq(0, 100, 10)) +[m
+[32m+[m[32m  scale_x_continuous(name="Wetness Cover (%)",[m[41m [m
+                      breaks=seq(0, 80, 10)) [m
+[31m-png(filename="~/dropbox/owens/sfwcrft/code_output/swir_flux_plot.png", [m
+[31m-    width=8, height=6, units="in",res=300) [m
+[31m-print(swir_flux_plot)[m
+[32m+[m[32mpng(filename="~/dropbox/owens/sfwcrft/code_output/wet_flux_ce_plot.png",[m[41m [m
+[32m+[m[32m    width=8, height=6, units="in", res=300)[m
+[32m+[m[32mprint(wet_flux_plot)[m
+ dev.off()[m
+ [m
+[32m+[m[32mdaily_ce_tbl$dca <- ordered(daily_ce_tbl$dca,[m[41m [m
+[32m+[m[32m                            levels=c("T10", "T26", "T29", "T13"),[m[41m [m
+[32m+[m[32m                            labels=c("T10-1b", "T26", "T29-2", "T13-1"))[m
+[32m+[m[32mdaily_ce_tbl$date <- format(daily_ce_tbl$date, "%m-%d-%y")[m
+[32m+[m[32mnames(daily_ce_tbl) <- c("DCA", "Date", "Target 45%", "Target 55%",[m[41m [m
+[32m+[m[32m                         "Target 65%", "Target 75%")[m
+[32m+[m[32mwrite.csv(daily_ce_tbl,[m[41m [m
+[32m+[m[32m          file="~/dropbox/owens/sfwcrft/code_output/daily_ce_table.csv",[m[41m [m
+[32m+[m[32m          row.names=F)[m
+[32m+[m
+ report_flux <- daily_ce %>% [m
+   select(-avg.flux, -wetness, -dryness, -control.flux, -control.dry)[m
+ report_flux$trgtwet <- paste0("t_", report_flux$trgtwet)[m
+[1mdiff --git a/report/swir_tables.R b/report/swir_tables.R[m
+[1mdeleted file mode 100644[m
+[1mindex cef7553..0000000[m
+[1m--- a/report/swir_tables.R[m
+[1m+++ /dev/null[m
+[36m@@ -1,126 +0,0 @@[m
+[31m-rm(list=ls())[m
+[31m-load_all()[m
+[31m-load_all("~/code/owensData")[m
+[31m-library(rgdal)[m
+[31m-library(raster)[m
+[31m-library(ggplot2)[m
+[31m-library(dplyr)[m
+[31m-[m
+[31m-swir_df <- data.frame(dca=wetness[[1]]$dca, trgtwet=wetness[[1]]$trgtwet)[m
+[31m-for (i in names(wetness)){[m
+[31m-  tmp <- wetness[[i]][m
+[31m-  names(tmp)[3] <- i[m
+[31m-  swir_df <- left_join(swir_df, tmp, by=c("dca", "trgtwet"))[m
+[31m-}[m
+[31m-swir_melt <- reshape2::melt(swir_df, id.vars=c("dca", "trgtwet"), [m
+[31m-                            variable.name="date", [m
+[31m-                            value.name="swir")[m
+[31m-swir_tbl <- swir_df[ , names(swir_df)!="050915"][m
+[31m-swir_tbl$dca <- ordered(swir_tbl$dca, levels=c("T10", "T26", "T29", "T13"))[m
+[31m-swir_tbl <- arrange(swir_tbl, dca, trgtwet)[m
+[31m-swir_tbl$dca <- as.character(swir_tbl$dca)[m
+[31m-names(swir_tbl) <- c("DCA", "Target Wetness", "Apr 16, 2015", "June 8, 2015", [m
+[31m-                     "June 20, 2015", "Nov 30, 2015", "Dec 1, 2015", [m
+[31m-                     "Apr 26, 2016", "May 27, 2016", "June 24, 2016")[m
+[31m-swir_tbl$DCA[swir_tbl$DCA=="T10"] <- "T10-1b"[m
+[31m-swir_tbl$DCA[swir_tbl$DCA=="T29"] <- "T29-2"[m
+[31m-swir_tbl$DCA[swir_tbl$DCA=="T13"] <- "T13-1"[m
+[31m-swir_tbl$'Target Wetness' <- paste0(swir_tbl$'Target Wetness', "%")[m
+[31m-for (i in 3:10){[m
+[31m-  swir_tbl[ , i] <- paste0(swir_tbl[ , i] * 100, "%")[m
+[31m-}[m
+[31m-# remove areas when not in operation[m
+[31m-swir_tbl[swir_tbl$DCA=='T26', 3] <- NA[m
+[31m-swir_tbl[swir_tbl$DCA=='T29-2', 3:5] <- NA[m
+[31m-write.csv(swir_tbl, [m
+[31m-          file="~/dropbox/owens/sfwcrft/code_output/swir_target_table.csv", [m
+[31m-          row.names=F)[m
+[31m-[m
+[31m-query1 <- "SELECT dcm as dca, trgtwet, day, round AS wet[m
+[31m-           FROM sfwct.wetness_summary [m
+[31m-           WHERE class='W'"[m
+[31m-trans_summ <- query_owenslake(query1)[m
+[31m-# add in 0% wetness in T26 0% area for all transect days (this is what was [m
+[31m-# measured, but since wetness transect has 0 length for these areas, it will not [m
+[31m-# show up in summary view[m
+[31m-a <- unique(filter(trans_summ, dca=='T26')$day)[m
+[31m-tmp <- data.frame(dca=rep('T26', length(a)), trgtwet=rep(0, length(a)), [m
+[31m-                  day=a, wet=rep(0, length(a)))[m
+[31m-trans_summ <- rbind(trans_summ, tmp)[m
+[31m-trans_summ$date <- paste0(substr(trans_summ$day, 6, 7), [m
+[31m-                          substr(trans_summ$day, 9, 10), [m
+[31m-                          substr(trans_summ$day, 3, 4))[m
+[31m-trans_summ$trgtwet <- as.character(trans_summ$trgtwet)[m
+[31m-swir_trans <- left_join(select(trans_summ, -day), swir_melt, [m
+[31m-                        by=c("dca", "trgtwet", "date"))[m
+[31m-swir_trans <- swir_trans %>% filter(date!='060815', !is.na(swir))[m
+[31m-swir_trans_melt <- reshape2::melt(swir_trans, [m
+[31m-                                  id.vars=c("dca", "trgtwet", "date"))[m
+[31m-swir_trans_melt$date <- ordered(swir_trans_melt$date, [m
+[31m-                                levels=c("113015", "120115", "042616", [m
+[31m-                                         "052716"))[m
+[31m-swir_trans_plot <- swir_trans %>%[m
+[31m-  ggplot(aes(x=swir*100, y=wet*100)) +[m
+[31m-  geom_point() +[m
+[31m-  scale_x_continuous(name="SWIR Estimated Wetness (%)", [m
+[31m-                     breaks=seq(0, 100, 10)) +[m
+[31m-  scale_y_continuous(name="Ground Estimated Wetness (%)", [m
+[31m-                     breaks=seq(0, 100, 10)) +[m
+[31m-  geom_abline(intercept=0, slope=1, color="blue") [m
+[31m-png(filename="~/dropbox/owens/sfwcrft/code_output/swir_trans_plot.png", [m
+[31m-    height=6, width=6, units="in", res=300)[m
+[31m-print(swir_trans_plot)[m
+[31m-dev.off()[m
+[31m-[m
+[31m-swir_trans_melt$variable <- paste0(swir_trans_melt$date, ".", [m
+[31m-                                   swir_trans_melt$variable)[m
+[31m-swir_trans_cast <- swir_trans_melt %>% select(-date) %>%[m
+[31m-  reshape2::dcast(dca + trgtwet ~ variable) %>%[m
+[31m-  arrange(dca, trgtwet)[m
+[31m-swir_trans_cast$trgtwet <- paste0(swir_trans_cast$trgtwet, "%")[m
+[31m-for (i in 3:10){[m
+[31m-  swir_trans_cast[ , i] <- [m
+[31m-    sapply(swir_trans_cast[ , i], [m
+[31m-           function(x) ifelse(is.na(x), "NA", paste0(x * 100, "%")))[m
+[31m-}[m
+[31m-write.csv(swir_trans_cast, [m
+[31m-          file="~/dropbox/owens/sfwcrft/code_output/swir_trans_table.csv", [m
+[31m-          row.names=FALSE) [m
+[31m-[m
+[31m-swir_plot_df <- swir_tbl[m
+[31m-names(swir_plot_df) <- c("dca", "trgtwet", "04/16/2015", "06/08/2015", [m
+[31m-                         "06/20/2015", "11/30/2015", "12/01/2015",[m
+[31m-                         "04/26/2016", "05/27/2016", "06/24/2016")[m
+[31m-swir_plot_melt <- reshape2::melt(swir_plot_df, id.vars=c("dca", "trgtwet"))[m
+[31m-swir_plot_melt$variable <- ordered(swir_plot_melt$variable, [m
+[31m-                                   levels=c("04/16/2015", "06/08/2015", [m
+[31m-                                            "06/20/2015", "11/30/2015", [m
+[31m-                                            "12/01/2015", "04/26/2016",[m
+[31m-                                            "05/27/2016", "06/24/2016"))[m
+[31m-swir_plot_melt$trgtwet <- as.numeric(gsub("%", "", swir_plot_melt$trgtwet)) [m
+[31m-swir_plot_melt$value <- as.numeric(gsub("%", "", swir_plot_melt$value)) [m
+[31m-swir_tracking <- vector(mode="list", length=4)[m
+[31m-names(swir_tracking) <- c("T10-1b", "T26", "T13-1", "T29-2")[m
+[31m-for (i in names(swir_tracking)){[m
+[31m-  clrs <- c('#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00')[m
+[31m-  ab_ints <- unique(filter(swir_plot_melt, dca==i)$trgtwet)[m
+[31m-  n <- length(ab_ints)[m
+[31m-  swir_tracking[[i]] <- swir_plot_melt %>% filter(dca==i) %>%[m
+[31m-    ggplot(aes(x=variable, y=value, group=factor(trgtwet))) +[m
+[31m-    geom_path(aes(color=factor(trgtwet))) +[m
+[31m-    scale_color_manual(name="Target\nWetness (%)", values=clrs[1:n]) +[m
+[31m-    scale_y_continuous(name="SWIR Estimated Wetness (%)", [m
+[31m-                       breaks=c(0, 10, 20, 30, 40, 45, 50, 55, 60, 65, 70, 75, [m
+[31m-                                80, 90, 100), [m
+[31m-                       minor_breaks=NULL, limits=c(0, 100)) +[m
+[31m-    geom_abline(slope=0, intercept=ab_ints, linetype="dashed", [m
+[31m-                color=clrs[1:n]) +[m
+[31m-    xlab("SWIR Date") + [m
+[31m-    theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1)) +[m
+[31m-    ggtitle(i)[m
+[31m-  png(filename=paste0("~/dropbox/owens/sfwcrft/code_output/", i, "_swir.png"), [m
+[31m-      height=6, width=9, units="in", res=300)[m
+[31m-  print(swir_tracking[[i]])[m
+[31m-  dev.off()[m
+[31m-}[m
+[31m-[m
+[1mdiff --git a/report/wetness_tables.R b/report/wetness_tables.R[m
+[1mnew file mode 100644[m
+[1mindex 0000000..37e65ea[m
+[1m--- /dev/null[m
+[1m+++ b/report/wetness_tables.R[m
+[36m@@ -0,0 +1,111 @@[m
+[32m+[m[32mrm(list=ls())[m
+[32m+[m[32mload_all()[m
+[32m+[m[32mload_all("~/code/owensData")[m
+[32m+[m[32mlibrary(tidyverse)[m
+[32m+[m[32mlibrary(ggplot2)[m
+[32m+[m[32mlibrary(reshape2)[m
+[32m+[m
+[32m+[m[32mswir_tbl <- wet_record %>% filter(method=='swir') %>% select(-method) %>%[m
+[32m+[m[32m  dcast(dca + trgtwet ~ period)[m
+[32m+[m
+[32m+[m[32mtran_melt <- tran_record %>% select(dca, trgtwet, period, wet)[m[41m [m
+[32m+[m[32mtran_melt$period <- ordered(tran_melt$period,[m[41m [m
+[32m+[m[32m                            levels=c('0515', '1115', '1215', '0116', '0316',[m
+[32m+[m[32m                                     '0416', '0516'))[m
+[32m+[m[32mtran_tbl <- tran_melt %>% arrange(period) %>% dcast(dca + trgtwet ~ period)[m
+[32m+[m
+[32m+[m[32mswir_trans <- inner_join(melt(swir_tbl, id.vars=c("dca", "trgtwet"),[m[41m [m
+[32m+[m[32m                              variable.name="period", value.name="swir"),[m[41m [m
+[32m+[m[32m                         melt(tran_tbl, id.vars=c("dca", "trgtwet"),[m[41m [m
+[32m+[m[32m                              variable.name="period", value.name="tran"),[m[41m [m
+[32m+[m[32m                         by=c("dca", "trgtwet", "period"))[m
+[32m+[m
+[32m+[m[32mswir_trans_plot <- swir_trans %>%[m
+[32m+[m[32m  ggplot(aes(x=swir*100, y=tran*100)) +[m
+[32m+[m[32m  geom_point() +[m
+[32m+[m[32m  scale_x_continuous(name="SWIR Estimated Wetness (%)",[m[41m [m
+[32m+[m[32m                     breaks=seq(0, 100, 10)) +[m
+[32m+[m[32m  scale_y_continuous(name="Ground Estimated Wetness (%)",[m[41m [m
+[32m+[m[32m                     breaks=seq(0, 100, 10)) +[m
+[32m+[m[32m  geom_abline(intercept=0, slope=1, color="blue")[m[41m [m
+[32m+[m[32mpng(filename="~/dropbox/owens/sfwcrft/code_output/swir_trans_plot.png",[m[41m [m
+[32m+[m[32m    height=6, width=6, units="in", res=300)[m
+[32m+[m[32mprint(swir_trans_plot)[m
+[32m+[m[32mdev.off()[m
+[32m+[m
+[32m+[m[32mswir_tmp <- swir_trans %>% mutate(var=paste0("swir.", period)) %>%[m
+[32m+[m[32m  select(-period, -tran) %>%[m
+[32m+[m[32m  dcast(dca + trgtwet ~ var, value.var='swir')[m
+[32m+[m[32mtran_tmp <- swir_trans %>% mutate(var=paste0("tran.", period)) %>%[m
+[32m+[m[32m  select(-period, -swir) %>%[m
+[32m+[m[32m  dcast(dca + trgtwet ~ var, value.var='tran')[m
+[32m+[m[32mswir_trans_tbl <- inner_join(swir_tmp, tran_tmp, by=c("dca", "trgtwet"))[m
+[32m+[m[32mwrite.csv(swir_trans_tbl,[m[41m [m
+[32m+[m[32m          file="~/dropbox/owens/sfwcrft/code_output/swir_trans_table.csv",[m[41m [m
+[32m+[m[32m          row.names=F)[m
+[32m+[m
+[32m+[m[32mnames(swir_tbl) <- c("DCA", "Target Wetness", "Apr 16, 2015", "June 8, 2015",[m[41m [m
+[32m+[m[32m                     "June 20, 2015", "Nov 30, 2015", "Dec 1, 2015",[m[41m [m
+[32m+[m[32m                     "Apr 26, 2016", "May 27, 2016", "June 24, 2016")[m
+[32m+[m[32mswir_tbl$DCA[swir_tbl$DCA=="T10"] <- "T10-1b"[m
+[32m+[m[32mswir_tbl$DCA[swir_tbl$DCA=="T29"] <- "T29-2"[m
+[32m+[m[32mswir_tbl$DCA[swir_tbl$DCA=="T13"] <- "T13-1"[m
+[32m+[m[32mswir_tbl$'Target Wetness' <- paste0(swir_tbl$'Target Wetness', "%")[m
+[32m+[m[32mfor (i in 3:10){[m
+[32m+[m[32m  swir_tbl[ , i] <- swir_tbl[ , i] * 100[m
+[32m+[m[32m}[m
+[32m+[m[32mwrite.csv(swir_tbl,[m[41m [m
+[32m+[m[32m          file="~/dropbox/owens/sfwcrft/code_output/swir_table.csv",[m[41m [m
+[32m+[m[32m          row.names=F)[m
+[32m+[m
+[32m+[m[32mnames(tran_tbl) <- c("DCA", "Target Wetness", "May 2015", "November 2015",[m[41m [m
+[32m+[m[32m                     "December 2015", "January 2016", "March 2016",[m[41m [m
+[32m+[m[32m                     "April 2016", "May 2016")[m
+[32m+[m[32mtran_tbl$DCA[tran_tbl$DCA=="T10"] <- "T10-1b"[m
+[32m+[m[32mtran_tbl$DCA[tran_tbl$DCA=="T29"] <- "T29-2"[m
+[32m+[m[32mtran_tbl$DCA[tran_tbl$DCA=="T13"] <- "T13-1"[m
+[32m+[m[32mtran_tbl$'Target Wetness' <- paste0(tran_tbl$'Target Wetness', "%")[m
+[32m+[m[32mfor (i in 3:9){[m
+[32m+[m[32m  tran_tbl[ , i] <- tran_tbl[ , i] * 100[m
+[32m+[m[32m}[m
+[32m+[m[32mwrite.csv(tran_tbl,[m[41m [m
+[32m+[m[32m          file="~/dropbox/owens/sfwcrft/code_output/transect_table.csv",[m[41m [m
+[32m+[m[32m          row.names=F)[m
+[32m+[m
+[32m+[m[32mswir_plot_df <- swir_tbl[m
+[32m+[m[32mnames(swir_plot_df) <- c("dca", "trgtwet", "04/16/2015", "06/08/2015",[m[41m [m
+[32m+[m[32m                         "06/20/2015", "11/30/2015", "12/01/2015",[m
+[32m+[m[32m                         "04/26/2016", "05/27/2016", "06/24/2016")[m
+[32m+[m[32mswir_plot_melt <- reshape2::melt(swir_plot_df, id.vars=c("dca", "trgtwet"))[m
+[32m+[m[32mswir_plot_melt$variable <- ordered(swir_plot_melt$variable,[m[41m [m
+[32m+[m[32m                                   levels=c("04/16/2015", "06/08/2015",[m[41m [m
+[32m+[m[32m                                            "06/20/2015", "11/30/2015",[m[41m [m
+[32m+[m[32m                                            "12/01/2015", "04/26/2016",[m
+[32m+[m[32m                                            "05/27/2016", "06/24/2016"))[m
+[32m+[m[32mswir_plot_melt$trgtwet <- as.numeric(gsub("%", "", swir_plot_melt$trgtwet))[m[41m [m
+[32m+[m[32mswir_plot_melt$value <- as.numeric(gsub("%", "", swir_plot_melt$value))[m[41m [m
+[32m+[m[32mswir_tracking <- vector(mode="list", length=4)[m
+[32m+[m[32mnames(swir_tracking) <- c("T10-1b", "T26", "T13-1", "T29-2")[m
+[32m+[m[32mfor (i in names(swir_tracking)){[m
+[32m+[m[32m  clrs <- c('#e41a1c','#377eb8','#4daf4a','#984ea3','#ff7f00')[m
+[32m+[m[32m  ab_ints <- unique(filter(swir_plot_melt, dca==i)$trgtwet)[m
+[32m+[m[32m  n <- length(ab_ints)[m
+[32m+[m[32m  swir_tracking[[i]] <- swir_plot_melt %>% filter(dca==i) %>%[m
+[32m+[m[32m    ggplot(aes(x=variable, y=value, group=factor(trgtwet))) +[m
+[32m+[m[32m    geom_path(aes(color=factor(trgtwet))) +[m
+[32m+[m[32m    scale_color_manual(name="Target\nWetness (%)", values=clrs[1:n]) +[m
+[32m+[m[32m    scale_y_continuous(name="SWIR Estimated Wetness (%)",[m[41m [m
+[32m+[m[32m                       breaks=c(0, 10, 20, 30, 40, 45, 50, 55, 60, 65, 70, 75,[m[41m [m
+[32m+[m[32m                                80, 90, 100),[m[41m [m
+[32m+[m[32m                       minor_breaks=NULL, limits=c(0, 100)) +[m
+[32m+[m[32m    geom_abline(slope=0, intercept=ab_ints, linetype="dashed",[m[41m [m
+[32m+[m[32m                color=clrs[1:n]) +[m
+[32m+[m[32m    xlab("SWIR Date") +[m[41m [m
+[32m+[m[32m    theme(axis.text.x=element_text(angle=45, hjust=1, vjust=1)) +[m
+[32m+[m[32m    ggtitle(i)[m
+[32m+[m[32m#  png(filename=paste0("~/dropbox/owens/sfwcrft/code_output/", i, "_swir.png"),[m[41m [m
+[32m+[m[32m#      height=6, width=9, units="in", res=300)[m
+[32m+[m[32m#  print(swir_tracking[[i]])[m
+[32m+[m[32m#  dev.off()[m
+[32m+[m[32m}[m
+[32m+[m
+[1mdiff --git a/scripts/.sandmass.R.swp b/scripts/.sandmass.R.swp[m
+[1mindex 19e8b8a..39a6889 100644[m
+Binary files a/scripts/.sandmass.R.swp and b/scripts/.sandmass.R.swp differ
+[1mdiff --git a/scripts/.swir_wetness.R.swp b/scripts/.swir_wetness.R.swp[m
+[1mnew file mode 100644[m
+[1mindex 0000000..dce0e05[m
+Binary files /dev/null and b/scripts/.swir_wetness.R.swp differ
+[1mdiff --git a/scripts/sandmass.R b/scripts/sandmass.R[m
+[1mindex bfd5075..05a0571 100644[m
+[1m--- a/scripts/sandmass.R[m
+[1m+++ b/scripts/sandmass.R[m
+[36m@@ -17,95 +17,97 @@[m [mmonthly_mass <- flux_df %>% group_by(csc, month, year, period, area, treatment,[m
+   summarize(sand.mass=round(sum(sand_flux)*geom_adj, 1)) %>%[m
+   arrange(year, month) %>% ungroup()[m
+ [m
+[31m-# filter out CSC sites which experienced sand intrusion from control plot[m
+[32m+[m[32m# filter out CSC sites which experienced sand intrusion from control plot,[m[41m   [m
+[32m+[m[32m# months that are not part of the dust season[m[41m [m
+[32m+[m[32mintrusion_list <- vector(mode="list", length=0)[m
+[32m+[m[32mintrusion_list[['1115']] <- c('1540', '1538', '1537', '1536', '1535', '1534',[m
+[32m+[m[32m                           '1533', '1532', '1531','1524', '1530', '1522',[m
+[32m+[m[32m                           '1521', '1520', '1510')[m
+[32m+[m[32mintrusion_list[['1215']] <- c('1540', '1538', '1537', '1535', '1534', '1533',[m
+[32m+[m[32m                           '1532', '1531', '1530')[m
+[32m+[m[32mintrusion_list[['0216']] <- c('1538', '1534', '1532', '1531', '1530', '1524',[m
+[32m+[m[32m                           '1522', '1521', '1520')[m
+[32m+[m[32mintrusion_list[['0316']] <- c('1535', '1522', '1521', '1520')[m
+[32m+[m[32mintrusion_list[['0416']] <- c('1521', '1522', '1523', '1513', '1520', '1511',[m
+[32m+[m[32m                           '1512')[m
+[32m+[m[32mintrusion_list[['0516']] <- c('1530', '1524', '1523', '1522', '1521')[m
+[32m+[m[41m                                                    [m
+ filtered_mass <- monthly_mass %>%[m
+[31m-  filter(!(dca=='T26' & period=='1115' & csc %in% c('1540', '1538', '1537', [m
+[31m-                                                    '1536', '1535', '1534',[m
+[31m-                                                    '1533', '1532', '1531',[m
+[31m-                                                    '1524', '1530', '1522', [m
+[31m-                                                    '1521', '1520', '1510'))) %>%[m
+[31m-  filter(!(dca=='T26' & period=='1215' & csc %in% c('1540', '1538', '1537', [m
+[31m-                                                    '1535', '1534', '1533',[m
+[31m-                                                    '1532', '1531', '1530'))) %>%[m
+[31m-  filter(!(dca=='T26' & period=='0216' & csc %in% c('1538', '1534', '1532', [m
+[31m-                                                    '1531', '1530', '1524',[m
+[31m-                                                    '1522', '1521', '1520'))) %>%[m
+[31m-  filter(!(dca=='T26' & period=='0316' & csc %in% c('1535', '1522', '1521', [m
+[31m-                                                    '1520'))) %>%[m
+[31m-  filter(!(dca=='T26' & period=='0416' & csc %in% c('1521', '1522', '1523', [m
+[31m-                                                    '1513', '1520', '1511', [m
+[31m-                                                    '1512'))) %>%[m
+[31m-  filter(!(dca=='T26' & period=='0516' & csc %in% c('1530', '1524', '1523', [m
+[31m-                                                    '1522', '1521')))[m
+[32m+[m[32m  filter(!(dca=='T26' & period=='1115' & csc %in% intrusion_list[['1115']])) %>%[m
+[32m+[m[32m  filter(!(dca=='T26' & period=='1215' & csc %in% intrusion_list[['1215']])) %>%[m
+[32m+[m[32m  filter(!(dca=='T26' & period=='0216' & csc %in% intrusion_list[['0216']])) %>%[m
+[32m+[m[32m  filter(!(dca=='T26' & period=='0316' & csc %in% intrusion_list[['0316']])) %>%[m
+[32m+[m[32m  filter(!(dca=='T26' & period=='0416' & csc %in% intrusion_list[['0416']])) %>%[m
+[32m+[m[32m  filter(!(dca=='T26' & period=='0516' & csc %in% intrusion_list[['0516']]))[m[41m [m
+ [m
+ dust_season <- c("0415", "0515", "0615", "1115", "1215", "0116", "0216", [m
+                  "0316", "0416", "0516", "0616")[m
+[31m-mass_summary <- vector(mode="list", length=length(dust_season))[m
+[31m-names(mass_summary) <- dust_season[m
+[31m-for (i in names(mass_summary)){[m
+[31m-  calc_wetness <- ce_wetness[[i]][m
+[31m-  calc_wetness$dryness <- 1 - calc_wetness[ , 3][m
+[31m-  mass_summary[[i]] <- filtered_mass %>%[m
+[31m-    filter(period==i) %>%[m
+[31m-    summarize_sandmass(., wetness=calc_wetness, period=i)[m
+[31m-  mass_summary[[i]]$period <- i[m
+[31m-  mass_summary[[i]]$control.eff <- clean_ce(mass_summary[[i]]$control.eff)[m
+[31m-}[m
+[32m+[m[32mfiltered_mass <- filtered_mass %>% filter(period %in% dust_season) %>%[m
+[32m+[m[32m  select(-area, -month, -year)[m
+[32m+[m[32mfiltered_mass$period <- ordered(filtered_mass$period,[m[41m [m
+[32m+[m[32m                                levels=c('0415', '0515', '0615', '1115',[m[41m [m
+[32m+[m[32m                                         '1215', '0116', '0216', '0316',[m[41m [m
+[32m+[m[32m                                         '0416', '0516', '0616'))[m
+[32m+[m[32msite_mass <- filtered_mass %>%[m
+[32m+[m[32m  dcast(csc + dca + treatment ~ period, value.var='sand.mass')[m
+[32m+[m[32mwrite.csv(site_mass,[m[41m [m
+[32m+[m[32m          file="~/dropbox/owens/sfwcrft/code_output/site_mass.csv",[m[41m [m
+[32m+[m[32m          row.names=F)[m
+ [m
+[31m-cutoff <- 10 # minimum 0% area monthly sand mass for inclusion in results[m
+[31m-ce_summ <- data.frame(dca=mass_summary[[10]]$dca, [m
+[31m-                          trgtwet=mass_summary[[10]]$trgtwet)[m
+[31m-control_mass_summ <- data.frame(dca=mass_summary[[10]]$dca, [m
+[31m-                          trgtwet=mass_summary[[10]]$trgtwet)[m
+[31m-for (i in names(mass_summary)){[m
+[31m-  tmp <- mass_summary[[i]] %>% filter(control.mass > cutoff) %>%[m
+[31m-    select(dca, trgtwet, control.eff)[m
+[31m-  names(tmp)[3] <- i[m
+[31m-  ce_summ <- left_join(ce_summ, tmp, by=c("dca", "trgtwet"))[m
+[32m+[m[32mavg_mass <- filtered_mass %>% group_by(dca, treatment, period) %>%[m
+[32m+[m[32m  summarize(avg.mass = round(mean(sand.mass), 2)) %>%[m
+[32m+[m[32m  dcast(dca + treatment ~ period)[m
+[32m+[m[32mwrite.csv(avg_mass,[m[41m [m
+[32m+[m[32m          file="~/dropbox/owens/sfwcrft/code_output/avg_mass.csv",[m[41m [m
+[32m+[m[32m          row.names=F)[m
+[32m+[m
+[32m+[m[32mprds <- unique(filtered_mass$period)[m
+[32m+[m[32mfor (i in 1:length(prds)){[m
+[32m+[m[32m  prd <- prds[i][m
+[32m+[m[32m  wet_tmp <- filter(wet_record, period==prd)[m
+[32m+[m[32m  wet_tmp$dryness <- 1 - wet_tmp$wet[m
+[32m+[m[32m  tmp_summary <- filtered_mass %>% filter(period==prd) %>%[m
+[32m+[m[32m    summarize_sandmass(., wetness=wet_tmp, period=prd)[m
+[32m+[m[32m  tmp_summary$period <- prd[m
+[32m+[m[32m  ifelse(i > 1, ce_summary <- rbind(ce_summary, tmp_summary),[m[41m [m
+[32m+[m[32m         ce_summary <- tmp_summary)[m
+ }[m
+[31m-write.csv(ce_summ, file="~/Desktop/mass_ce_summary.csv", row.names=F)[m
+ [m
+[31m-control_mass_summ <- data.frame(dca=mass_summary[[10]]$dca, [m
+[31m-                          trgtwet=mass_summary[[10]]$trgtwet)[m
+[31m-for (i in names(mass_summary)){[m
+[31m-  tmp <- mass_summary[[i]] %>% [m
+[31m-    select(dca, trgtwet, control.mass)[m
+[31m-  names(tmp)[3] <- i[m
+[31m-  control_mass_summ <- left_join(control_mass_summ, tmp, by=c("dca", "trgtwet"))[m
+[32m+[m[32mcutoff <- 10 # minimum 0% area monthly sand mass for inclusion in results[m
+[32m+[m[32mfor (i in 1:nrow(ce_summary)){[m
+[32m+[m[32m  ce_summary$control.eff[i] <- ifelse(ce_summary$control.mass[i] < cutoff,[m[41m [m
+[32m+[m[32m                                      NA, ce_summary$control.eff[i])[m
+ }[m
+[31m-cm_summ <- melt(control_mass_summ, id.vars=c("dca", "trgtwet"), [m
+[31m-                value.name="control.mass")[m
+[32m+[m[32mmass_ce_tbl <- ce_summary %>%[m[41m [m
+[32m+[m[32m  select(dca, trgtwet, period, control.eff) %>%[m
+[32m+[m[32m  dcast(dca + trgtwet ~ period)[m
+[32m+[m[32mwrite.csv(mass_ce_tbl,[m[41m [m
+[32m+[m[32m          file="~/dropbox/owens/sfwcrft/code_output/mass_ce_tbl.csv",[m[41m [m
+[32m+[m[32m          row.names=F)[m
+ [m
+[31m-swir_ce <- swir_summ %>% select(-average) %>% [m
+[31m-  melt(id.vars=c("dca", "trgtwet"), value.name="swir") %>%[m
+[31m-  left_join(melt(ce_summ, id.vars=c("dca", "trgtwet"), value.name="ce"),[m
+[31m-            by=c("dca", "trgtwet", "variable"), suffix=c(".swir", ".wet")) %>%[m
+[31m-  left_join(cm_summ, by=c("dca", "trgtwet", "variable")) [m
+[31m-swir_ce$ce <- as.numeric(swir_ce$ce)[m
+[32m+[m[32mmass_ce_melt <- melt(mass_ce_tbl, id.vars=c("dca", "trgtwet"),[m[41m [m
+[32m+[m[32m                     variable.name="period", value.name="ce")[m
+[32m+[m[32mcm_summ <- ce_summary %>% select(dca, trgtwet, period, control.mass) %>%[m
+[32m+[m[32m  filter(control.mass > cutoff)[m
+ [m
+[31m-ce_curve <- data.frame(wetness=c(.72, .64, .28, 0), ce=c(99, 94, 59, 0))[m
+[31m-swir_ce$t26.filter <- ifelse((swir_ce$dca=='T26') & [m
+[31m-                            !(swir_ce$variable %in% c("0316", "0416", "0516", "0616")), [m
+[31m-                            FALSE, TRUE)[m
+[31m-swir_ce$swir <- swir_ce$swir*100[m
+[32m+[m[32mplot_df <- wet_record %>%[m
+[32m+[m[32m  left_join(mass_ce_melt, by=c("dca", "trgtwet", "period")) %>%[m
+[32m+[m[32m  left_join(cm_summ, by=c("dca", "trgtwet", "period"))[m
+[32m+[m[32mplot_df$wet <- plot_df$wet * 100[m
+ [m
+[31m-swir_ce_plot <- swir_ce %>% filter(ce>0, !is.na(swir), !is.na(ce), t26.filter) %>%[m
+[31m-  rename(wetness=swir) %>%[m
+[31m-  ggplot(aes(x=wetness, y=ce)) +[m
+[32m+[m[32mwet_mass_plot <- plot_df %>% filter(ce>0) %>%[m
+[32m+[m[32m  ggplot(aes(x=wet, y=ce)) +[m
+   geom_point(aes(size=control.mass, color=dca)) +[m
+   ggtitle("Monthly Sand Mass Control Efficiency - 2015/2016 Dust Season") +[m
+   scale_colour_manual(name="DCA", values=c("red", "blue", "green", "orange")) +[m
+   scale_size_continuous(name="0% Area Mass") +[m
+[31m-#  stat_function(xlim=c(20, 80), linetype="dashed", color="black", [m
+[31m-#                fun = function(x) 100 - 10000/((x - 5)^2.4)) +[m
+   scale_y_continuous(name="Control Efficiency (%)", [m
+                      breaks=seq(0, 100, 10)) +[m
+[31m-  scale_x_continuous(name="SWIR Estimated Wetness Cover (%)", [m
+[32m+[m[32m  scale_x_continuous(name="Wetness Cover (%)",[m[41m [m
+                      breaks=seq(0, 80, 10)) [m
+[31m-[m
+[31m-png(filename="~/Desktop/swir_ce_plot.png", width=8, height=6, units="in", [m
+[31m-    res=300)[m
+[31m-print(swir_ce_plot)[m
+[32m+[m[32mpng(filename="~/dropbox/owens/sfwcrft/code_output/wet_mass_ce_plot.png",[m[41m [m
+[32m+[m[32m    width=8, height=6, units="in", res=300)[m
+[32m+[m[32mprint(wet_mass_plot)[m
+ dev.off()[m
+ [m
+ areas <- unique(monthly_mass$dca)[m
+[1mdiff --git a/scripts/swir_wetness.R b/scripts/swir_wetness.R[m
+[1mindex 0622d23..7b7a0dd 100644[m
+[1m--- a/scripts/swir_wetness.R[m
+[1m+++ b/scripts/swir_wetness.R[m
+[36m@@ -1,31 +1,42 @@[m
+[31m-load_all("~/code/owensData")[m
+ load_all()[m
+[32m+[m[32mload_all("~/code/owensData")[m
+ library(rgdal)[m
+ library(raster)[m
+ library(ggplot2)[m
+ library(dplyr)[m
+[32m+[m[32mlibrary(reshape2)[m
+ rasterOptions(tolerance = 1)[m
+ [m
+[32m+[m[32m# read in SFWCRFT area shapefile[m
+ sfwct_areas <- readOGR(path.expand("~/code/sfwcRft/data/DCM_SFWCT_2015_Bndys_070815"), [m
+                "DCM_SFWCT_2015_Bndys_070815")[m
+ sfwct_areas@data$index <- as.integer(paste0(substr(sfwct_areas@data$DCM, 2, 3), [m
+                                  as.character(sfwct_areas@data$TrgtWet)))[m
+[32m+[m
+[32m+[m[32m# build trimmed rasters in shape of areas for trimming SWIR images.[m[41m [m
+ ras_uniform <- raster("~/dropbox/data/swir/Formation_noadj/113015_form_noadj.tif")[m
+ ras_uniform[ , ] <- 1[m
+[31m-sfwct_ras <- ras_clip(ras_uniform, sfwct_areas)[m
+[32m+[m[32m# sfwct_ras <- ras_clip(ras_uniform, sfwct_areas)[m
+ sfwct_trgtwet_ras <- ras_clip(ras_uniform, sfwct_areas, fld="index")[m
+[31m-date_index <- c("041615", "050915", "060815", "062015", "113015", "120115", [m
+[32m+[m
+[32m+[m[32m# for which dates are SWIR images available?[m
+[32m+[m[32m# do not use May 9, 2015 (cloud cover) (June 8, 2015 will be used for May 2015[m[41m [m
+[32m+[m[32m# wetness estimate)[m
+[32m+[m[32mdate_index <- c("041615", "060815", "062015", "113015", "120115",[m[41m [m
+                 "042616", "052716", "062416")[m
+[32m+[m
+[32m+[m[32m# get list of file names for SWIR images[m
+ a <- list.files(path="~/dropbox/data/swir/Formation_noadj/", [m
+                 pattern=".tif")[m
+[32m+[m
+ wetness <- vector(mode="list", length=length(date_index))[m
+ names(wetness) <- date_index[m
+ for (k in date_index){[m
+   print(k)[m
+   fn <- a[substr(a, 1, 6)==k][1][m
+   ras_swir <- raster(paste0("~/dropbox/data/swir/Formation_noadj/", fn))[m
+[31m-  ras_uniform <- ras_swir[m
+[31m-  ras_uniform[ , ] <- 1[m
+[32m+[m[32m#  ras_uniform <- ras_swir[m
+[32m+[m[32m#  ras_uniform[ , ] <- 1[m
+   zones <- vector(mode="list", length=length(sfwct_areas@data$index))[m
+   names(zones) <- sfwct_areas@data$index[m
+   for (i in names(zones)){[m
+[36m@@ -34,8 +45,7 @@[m [mfor (k in date_index){[m
+     temp[ , ] <- sapply(temp[ , ], function(x) ifelse(x==i, 1, NA))[m
+     zones[[i]] <- temp[m
+   }[m
+[31m-[m
+[31m-  wetness[[k]] <- data.frame(dca=c(), trgtwet=c(), wetness=c())[m
+[32m+[m[32m  wetness[[k]] <- data.frame(dca=c(), trgtwet=c(), swir.wet=c())[m
+   for (j in names(zones)){[m
+     print(paste0("Calculating wetness: ", j))[m
+     dca_txt <- paste0("T", substr(j, 1, 2))[m
+[36m@@ -44,44 +54,79 @@[m [mfor (k in date_index){[m
+     wet_ras <- class_wet(reflect_ras)[m
+     wet_value <- sum(wet_ras[ , ], na.rm=T)/sum(!is.na(wet_ras[ , ]))[m
+     temp <- data.frame(dca=dca_txt, trgtwet=trgt_txt, [m
+[31m-                       wetness=round(wet_value, 2))[m
+[32m+[m[32m                       swir.wet=round(wet_value, 2))[m
+     wetness[[k]] <- rbind(wetness[[k]], temp)[m
+   }[m
+ }[m
+ [m
+[31m-focused_wetness <- wetness[!(names(wetness) %in% c("050915", "062015"))][m
+[31m-names(focused_wetness) <- paste0(substr(names(focused_wetness), 1, 2), [m
+[31m-                                 substring(names(focused_wetness), 5))[m
+[31m-month_index <- c("0415", "0515", "0615", "1015", "1115", "1215", "0116",[m
+[32m+[m[32mnames(wetness)[names(wetness)=='060815'] <- '05xx15'[m
+[32m+[m[32mnames(wetness) <- paste0(substr(names(wetness), 1, 2),[m[41m [m
+[32m+[m[32m                                 substring(names(wetness), 5))[m
+[32m+[m
+[32m+[m[32m# define months in dust season for which wetness is required for CE calculations[m
+[32m+[m[32mmonth_index <- c("0415", "0515", "0615", "1115", "1215", "0116",[m
+                  "0216", "0316", "0416", "0516", "0616")[m
+ ce_wetness <- vector(mode="list", length=length(month_index))[m
+ names(ce_wetness) <- month_index[m
+ [m
+[31m-swir_summ <- data.frame(dca=focused_wetness[[1]]$dca, [m
+[31m-                          trgtwet=focused_wetness[[1]]$trgtwet)[m
+[31m-for (i in names(focused_wetness)){[m
+[31m-  names(focused_wetness[[i]])[3] <- i[m
+[31m-  swir_summ <- left_join(swir_summ, focused_wetness[[i]], [m
+[32m+[m[32mswir_wet_tbl <- data.frame(dca=wetness[[1]]$dca,[m[41m [m
+[32m+[m[32m                          trgtwet=wetness[[1]]$trgtwet)[m
+[32m+[m[32mfor (i in names(wetness)){[m
+[32m+[m[32m  names(wetness[[i]])[3] <- paste0("swir.", i)[m
+[32m+[m[32m  swir_wet_tbl <- left_join(swir_wet_tbl, wetness[[i]],[m[41m [m
+                            by=c("dca", "trgtwet"))[m
+ }[m
+[31m-# remove areas when not in operation[m
+[31m-swir_summ[swir_summ$dca=='T26', 3:4] <- NA[m
+[31m-swir_summ[swir_summ$dca=='T29', 3] <- NA[m
+[31m-[m
+[31m-swir_summ$average <- apply(as.matrix(swir_summ[ , 3:9]), 1, [m
+[31m-                           function(x) round(mean(x, na.rm=T), 2))[m
+[31m-for (j in names(ce_wetness)){[m
+[31m-  if (is.null(swir_summ[[j]])){[m
+[31m-    ce_wetness[[j]] <- select(swir_summ, dca, trgtwet, average)[m
+[31m-  } else{[m
+[31m-    ce_wetness[[j]] <- swir_summ[ , c('dca', 'trgtwet', j)][m
+[31m-  }[m
+[31m-}[m
+[31m-swir_summ$dca <- ordered(swir_summ$dca, levels=c("T26", "T10", "T29", "T13"))[m
+[31m-swir_summ <- swir_summ %>% arrange(dca, trgtwet)[m
+ [m
+[31m-save(wetness, ce_wetness, swir_summ, file="./data/wetness.RData")[m
+[31m-write.csv(swir_summ, file="~/Desktop/sfwct_swir_summary.csv")[m
+[32m+[m[32m# pull transect wetness data to fill in missing SWIR months[m
+[32m+[m[32mquery1 <- "SELECT dcm as dca, trgtwet, day, round AS wet[m
+[32m+[m[32m           FROM sfwct.wetness_summary[m[41m [m
+[32m+[m[32m           WHERE class='W'"[m
+[32m+[m[32mtrans_summ <- query_owenslake(query1)[m
+[32m+[m[32m# remove April 20, 2016 T26 transects, use April 26 instead to coincide with SWIR[m[41m [m
+[32m+[m[32m# flight. Remove duplicated day in Jun for T10 65%[m
+[32m+[m[32mtrans_summ <- filter(trans_summ, !(day=='2016-04-20' & dca=='T26'))[m
+[32m+[m[32mtrans_summ <- filter(trans_summ, !(day=='2015-06-09' & dca=='T10' & trgtwet==65))[m
+[32m+[m[32m# add in 0% wetness in T26 0% area for all transect days (this is what was[m[41m [m
+[32m+[m[32m# measured, but since wetness transect has 0 length for these areas, it will not[m[41m [m
+[32m+[m[32m# show up in summary view[m
+[32m+[m[32ma <- unique(filter(trans_summ, dca=='T26')$day)[m
+[32m+[m[32mtmp <- data.frame(dca=rep('T26', length(a)), trgtwet=rep(0, length(a)),[m[41m [m
+[32m+[m[32m                  day=a, wet=rep(0, length(a)))[m
+[32m+[m[32mtmp1 <- data.frame(dca='T26', trgtwet=45, day='2016-03-08', wet=0)[m[41m [m
+[32m+[m[32mtran_record <- rbind(trans_summ, tmp, tmp1)[m
+[32m+[m[32mtran_record$period <- paste0(substr(tran_record$day, 6, 7),[m[41m [m
+[32m+[m[32m                             substr(tran_record$day, 3, 4))[m
+[32m+[m[32m# apply June 8 transect to may 2015 period[m
+[32m+[m[32mtran_record[tran_record$period=='0615', ]$period <- '0515'[m
+[32m+[m[32mtrans_sub <- filter(tran_record, !(period %in% names(wetness)))[m
+[32m+[m[32m# apply January 28 transect wetness to both Jan 2016 and Feb 2016 period[m
+[32m+[m[32mtmp <- trans_sub %>% filter(period=='0116') %>% select(-period) %>%[m
+[32m+[m[32m  mutate(period='0216')[m
+[32m+[m[32mtrans_sub <- rbind(trans_sub, tmp) %>% select(-day) %>%[m
+[32m+[m[32m  arrange(period, dca, trgtwet)[m
+[32m+[m[32mtrans_sub$period <- paste0("tran.", trans_sub$period)[m
+[32m+[m
+[32m+[m[32mwet_record <- melt(swir_wet_tbl, id.vars=c("dca", "trgtwet"),[m[41m [m
+[32m+[m[32m                   variable.name="period", value.name="wet") %>%[m
+[32m+[m[32m              rbind(trans_sub) %>% rename(index=period) %>%[m
+[32m+[m[32m              mutate(method=substr(index, 1, 4), period=substr(index, 6, 9)) %>%[m
+[32m+[m[32m              select(-index)[m
+[32m+[m[32mwet_record$trgtwet <- as.integer(wet_record$trgtwet)[m
+[32m+[m[32mwet_record$period <- ordered(wet_record$period,[m[41m [m
+[32m+[m[32m                             levels=c('0415', '0515', '0615', '1115', '1215',[m
+[32m+[m[32m                                      '0116', '0216', '0316', '0416', '0516',[m
+[32m+[m[32m                                      '0616'))[m
+[32m+[m[32mfull_record <- expand.grid(period=unique(wet_record$period),[m[41m [m
+[32m+[m[32m                           dca=unique(wet_record$dca),[m[41m [m
+[32m+[m[32m                           trgtwet=unique(wet_record$trgtwet)) %>%[m
+[32m+[m[32m               filter(!(dca=='T13' & trgtwet!=75),[m[41m [m
+[32m+[m[32m                      !(dca=='T29' & !(trgtwet %in% c(0, 45))))[m[41m               [m
+[32m+[m[32mwet_record <- left_join(full_record, wet_record,[m[41m [m
+[32m+[m[32m                        by=c("dca", "trgtwet", "period")) %>%[m
+[32m+[m[32m              arrange(dca, period, trgtwet)[m
+[32m+[m[32mwet_record <- wet_record[!(duplicated(wet_record)), ][m
+[32m+[m
+[32m+[m[32msave(wet_record, tran_record, file="./data/wetness.RData")[m
+ [m
+ [m
+ [m

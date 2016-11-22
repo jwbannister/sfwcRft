@@ -9,8 +9,8 @@ library(reshape2)
 rasterOptions(tolerance = 1)
 
 # read in SFWCRFT area shapefile
-sfwct_areas <- readOGR(path.expand("~/dropbox/gis/owens/SFWCT/DCM_SFWCT_2015_Bndys_070815"), 
-               "DCM_SFWCT_2015_Bndys_070815")
+pth <- path.expand("~/dropbox/owens/gis/sfwcrft 2015-16/2015-2016 sfwcrft treatment areas/")
+sfwct_areas <- readOGR(pth, "DCM_SFWCT_2015_Bndys_070815")
 sfwct_areas@data$index <- as.integer(paste0(substr(sfwct_areas@data$DCM, 2, 3), 
                                  as.character(sfwct_areas@data$TrgtWet)))
 
